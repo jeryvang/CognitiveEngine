@@ -4,10 +4,6 @@ using System.Text.Json;
 
 namespace CognitiveEngine.Core;
 
-/// <summary>
-/// JSON-serializable configuration model for engine parameters.
-/// Omitted properties are filled from <see cref="CognitiveEngine.EngineOptions"/> defaults when loading.
-/// </summary>
 public sealed class EngineOptionsConfig
 {
     public float? DecayFactor { get; set; }
@@ -21,9 +17,6 @@ public sealed class EngineOptionsConfig
     public int? MaxAuditLog { get; set; }
 }
 
-/// <summary>
-/// Loads <see cref="CognitiveEngine.EngineOptions"/> from external configuration (e.g. JSON file or stream).
-/// </summary>
 public static class EngineConfigLoader
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -33,10 +26,6 @@ public static class EngineConfigLoader
         AllowTrailingCommas = true
     };
 
-    /// <summary>
-    /// Load engine options from a JSON stream.
-    /// Missing properties use default values from <see cref="CognitiveEngine.EngineOptions"/>.
-    /// </summary>
     public static CognitiveEngine.EngineOptions LoadFromStream(Stream stream)
     {
         if (stream == null)
@@ -47,9 +36,6 @@ public static class EngineConfigLoader
         return ToEngineOptions(config);
     }
 
-    /// <summary>
-    /// Load engine options from a JSON file at the given path.
-    /// </summary>
     public static CognitiveEngine.EngineOptions LoadFromFile(string filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath))
@@ -59,9 +45,6 @@ public static class EngineConfigLoader
         return LoadFromStream(stream);
     }
 
-    /// <summary>
-    /// Load engine options from a JSON string (e.g. for tests or in-memory config).
-    /// </summary>
     public static CognitiveEngine.EngineOptions LoadFromJson(string json)
     {
         if (json == null)
@@ -72,9 +55,6 @@ public static class EngineConfigLoader
         return ToEngineOptions(config);
     }
 
-    /// <summary>
-    /// Build <see cref="CognitiveEngine.EngineOptions"/> from config, applying defaults for any null property.
-    /// </summary>
     public static CognitiveEngine.EngineOptions ToEngineOptions(EngineOptionsConfig config)
     {
         if (config == null)
