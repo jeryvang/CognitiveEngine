@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="CognitiveEngine.Core/CognitiveEngine.Core.csproj" />
+  <Project Path="CognitiveEngine.Test/CognitiveEngine.Test.csproj" />
+  <Project Path="CognitiveEngine.Tests/CognitiveEngine.Tests.csproj" />
+</Solution>
