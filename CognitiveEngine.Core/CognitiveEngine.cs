@@ -17,6 +17,9 @@ public class CognitiveEngine
         public int MaxBoundaryViolationLog { get; set; } = 100;
         public int MaxDeterminismViolationLog { get; set; } = 100;
         public int MaxAuditLog { get; set; } = 1000;
+        public float ConfidenceSmoothingAlpha { get; set; } = 1f;
+        public float ConfidenceDecayRate { get; set; } = 0f;
+        public float ConfidenceMinChange { get; set; } = 0f;
     }
 
     private const int RecentStateHistorySize = 4;
@@ -30,6 +33,9 @@ public class CognitiveEngine
     private readonly int _maxBoundaryViolationLog;
     private readonly int _maxDeterminismViolationLog;
     private readonly int _maxAuditLog;
+    private readonly float _confidenceSmoothingAlpha;
+    private readonly float _confidenceDecayRate;
+    private readonly float _confidenceMinChange;
 
     private readonly Dictionary<string, SessionMemoryContext> _sessions =
         new Dictionary<string, SessionMemoryContext>();
@@ -81,6 +87,9 @@ public class CognitiveEngine
         _maxBoundaryViolationLog = o.MaxBoundaryViolationLog;
         _maxDeterminismViolationLog = o.MaxDeterminismViolationLog;
         _maxAuditLog = o.MaxAuditLog;
+        _confidenceSmoothingAlpha = o.ConfidenceSmoothingAlpha;
+        _confidenceDecayRate = o.ConfidenceDecayRate;
+        _confidenceMinChange = o.ConfidenceMinChange;
 
         _activeSession = CreateSession("default");
     }
@@ -202,7 +211,15 @@ public class CognitiveEngine
         var context  = new RuntimeMemoryContext(_activeSession.TickIndex, timestamp, _activeSession.Signals);
         var snapshot = new EvaluationSnapshot(context, _activeSession.CurrentState, _windowDuration);
 
-        var (resolvedState, ruleName, confidence) = snapshot.Evaluate();
+        var (resolvedState, ruleName, rawConfidence) = snapshot.Evaluate();
+        float confidence = ConfidenceModel.Update(
+            _activeSession.SmoothedConfidence,
+            rawConfidence,
+            _fixedStep,
+            _confidenceSmoothingAlpha,
+            _confidenceDecayRate,
+            _confidenceMinChange);
+        _activeSession.SmoothedConfidence = confidence;
 
         var violations = DeterministicIntegrityValidator.Validate(
             _activeSession.TickIndex, _activeSession.CurrentState, resolvedState, ruleName, _activeSession.RecentStates);

@@ -13,6 +13,7 @@ public sealed class SessionMemoryContext
     internal List<StateType>                RecentStates  { get; } = new List<StateType>();
     internal StateType                      CurrentState  { get; set; } = StateType.Neutral;
     internal int                            TickIndex     { get; set; } = 0;
+    internal float                          SmoothedConfidence { get; set; } = 0f;
 
     public IReadOnlyList<TickLog> ReadOnlyLogs => Logs;
 
@@ -32,5 +33,6 @@ public sealed class SessionMemoryContext
         RecentStates.Clear();
         CurrentState = StateType.Neutral;
         TickIndex    = 0;
+        SmoothedConfidence = 0f;
     }
 }

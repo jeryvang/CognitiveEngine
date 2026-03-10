@@ -15,6 +15,9 @@ public sealed class EngineOptionsConfig
     public int? MaxBoundaryViolationLog { get; set; }
     public int? MaxDeterminismViolationLog { get; set; }
     public int? MaxAuditLog { get; set; }
+    public float? ConfidenceSmoothingAlpha { get; set; }
+    public float? ConfidenceDecayRate { get; set; }
+    public float? ConfidenceMinChange { get; set; }
 }
 
 public static class EngineConfigLoader
@@ -72,7 +75,10 @@ public static class EngineConfigLoader
             MaxSwitchLog = config.MaxSwitchLog ?? defaults.MaxSwitchLog,
             MaxBoundaryViolationLog = config.MaxBoundaryViolationLog ?? defaults.MaxBoundaryViolationLog,
             MaxDeterminismViolationLog = config.MaxDeterminismViolationLog ?? defaults.MaxDeterminismViolationLog,
-            MaxAuditLog = config.MaxAuditLog ?? defaults.MaxAuditLog
+            MaxAuditLog = config.MaxAuditLog ?? defaults.MaxAuditLog,
+            ConfidenceSmoothingAlpha = config.ConfidenceSmoothingAlpha ?? defaults.ConfidenceSmoothingAlpha,
+            ConfidenceDecayRate = config.ConfidenceDecayRate ?? defaults.ConfidenceDecayRate,
+            ConfidenceMinChange = config.ConfidenceMinChange ?? defaults.ConfidenceMinChange
         };
     }
 }
