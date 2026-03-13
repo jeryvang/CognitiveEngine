@@ -95,5 +95,40 @@ namespace CognitiveEngine.Tests
             Assert.Equal("product-B", dto.ProductId);
             Assert.True(dto.Ticks.Count >= 1);
         }
+
+        [Fact]
+        public void ExportSession_EachTick_HasExplanationAndReasoningSignals()
+        {
+            var options = new CognitiveEngine.Core.CognitiveEngine.EngineOptions { FixedStep = 0.1f };
+            var engine = new CognitiveEngine.Core.CognitiveEngine(options);
+            engine.InjectSignal(new InputSignal(SignalType.ConfirmIntent, 0.9f, 0.1f));
+            engine.Update(0.1f, 0.1f);
+            var dto = engine.ExportSession();
+            Assert.True(dto.Ticks.Count >= 1);
+            var first = dto.Ticks[0];
+            Assert.NotNull(first.Explanation);
+            Assert.Equal("User confirmed intent with high confidence", first.Explanation);
+            Assert.NotNull(first.ReasoningSignals);
+        }
+
+        [Fact]
+        public void ExportSessionToJson_ContainsExplanationAndReasoningSignals()
+        {
+            var options = new CognitiveEngine.Core.CognitiveEngine.EngineOptions { FixedStep = 0.1f };
+            var engine = new CognitiveEngine.Core.CognitiveEngine(options);
+            engine.InjectSignal(new InputSignal(SignalType.DwellTime, 0.7f, 0f));
+            engine.Update(0.1f, 0.1f);
+            string json = engine.ExportSessionToJson();
+            var root = JObject.Parse(json);
+            var ticks = root["Ticks"] as JArray;
+            Assert.NotNull(ticks);
+            Assert.True(ticks.Count >= 1);
+            var firstTick = ticks[0] as JObject;
+            Assert.NotNull(firstTick);
+            Assert.True(firstTick.ContainsKey("Explanation"));
+            Assert.True(firstTick.ContainsKey("ReasoningSignals"));
+            var reasoningSignals = firstTick["ReasoningSignals"] as JArray;
+            Assert.NotNull(reasoningSignals);
+        }
     }
 }
