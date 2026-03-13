@@ -41,9 +41,44 @@ namespace CognitiveEngine.Tests
         }
 
         [Fact]
+        public void GetExplanation_ProductFocus_ReturnsExpected()
+        {
+            Assert.Equal("User is focusing on a product",
+                ExplainabilityLayer.GetExplanation("ProductFocus"));
+        }
+
+        [Fact]
+        public void GetExplanation_SwipeVelocity_ReturnsExpected()
+        {
+            Assert.Equal("Swipe or scroll indicates exploration",
+                ExplainabilityLayer.GetExplanation("SwipeVelocity"));
+        }
+
+        [Fact]
+        public void GetExplanation_MediumDwell_ReturnsExpected()
+        {
+            Assert.Equal("Moderate dwell suggests comparison",
+                ExplainabilityLayer.GetExplanation("MediumDwell"));
+        }
+
+        [Fact]
+        public void GetExplanation_DefaultExploration_ReturnsExpected()
+        {
+            Assert.Equal("Default exploration state from dominant signal",
+                ExplainabilityLayer.GetExplanation("DefaultExploration"));
+        }
+
+        [Fact]
         public void GetExplanation_UnknownRule_ReturnsRuleName()
         {
             Assert.Equal("UnknownRule", ExplainabilityLayer.GetExplanation("UnknownRule"));
+        }
+
+        [Fact]
+        public void GetExplanation_NullOrEmpty_ReturnsEmpty()
+        {
+            Assert.Equal("", ExplainabilityLayer.GetExplanation(null));
+            Assert.Equal("", ExplainabilityLayer.GetExplanation(""));
         }
 
         [Fact]
@@ -63,6 +98,15 @@ namespace CognitiveEngine.Tests
             engine.Update(0.1f, 0.1f);
             Assert.NotNull(explanation);
             Assert.Equal("User confirmed intent with high confidence", explanation);
+        }
+
+        [Fact]
+        public void StreamingEngine_Current_Explanation_IsHumanReadable()
+        {
+            var engine = new StreamingCognitiveEngine();
+            engine.Update(0.5f, 0.9f, 0f);
+            Assert.Equal(StateType.Hesitation, engine.Current.State);
+            Assert.Equal("Prolonged dwell suggests hesitation", engine.Current.Explanation);
         }
     }
 }
