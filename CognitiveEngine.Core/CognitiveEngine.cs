@@ -193,6 +193,16 @@ public class CognitiveEngine
         AppendAudit(AuditEntry.SessionReset(productId));
     }
 
+    public SessionExportDto ExportSession()
+    {
+        return SessionExporter.Export(ActiveProductId, Logs);
+    }
+
+    public string ExportSessionToJson()
+    {
+        return SessionExporter.ToJson(ExportSession());
+    }
+
     private SessionMemoryContext CreateSession(string productId)
     {
         var session = new SessionMemoryContext(productId);

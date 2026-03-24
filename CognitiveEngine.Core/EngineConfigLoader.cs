@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using System.Text.Json;
+using Newtonsoft.Json;
 
 namespace CognitiveEngine.Core;
 
@@ -22,11 +22,10 @@ public sealed class EngineOptionsConfig
 
 public static class EngineConfigLoader
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
     {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true
+        NullValueHandling = NullValueHandling.Ignore,
+        MissingMemberHandling = MissingMemberHandling.Ignore
     };
 
     public static CognitiveEngine.EngineOptions LoadFromStream(Stream stream)
@@ -34,9 +33,9 @@ public static class EngineConfigLoader
         if (stream == null)
             throw new ArgumentNullException(nameof(stream));
 
-        var config = JsonSerializer.Deserialize<EngineOptionsConfig>(stream, JsonOptions)
-            ?? new EngineOptionsConfig();
-        return ToEngineOptions(config);
+        using var reader = new StreamReader(stream);
+        var json = reader.ReadToEnd();
+        return LoadFromJson(json);
     }
 
     public static CognitiveEngine.EngineOptions LoadFromFile(string filePath)
@@ -53,7 +52,7 @@ public static class EngineConfigLoader
         if (json == null)
             throw new ArgumentNullException(nameof(json));
 
-        var config = JsonSerializer.Deserialize<EngineOptionsConfig>(json, JsonOptions)
+        var config = JsonConvert.DeserializeObject<EngineOptionsConfig>(json, JsonSettings)
             ?? new EngineOptionsConfig();
         return ToEngineOptions(config);
     }
