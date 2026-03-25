@@ -1,0 +1,177 @@
+using System;
+using CognitiveEngine.Core.TrialIntelligence;
+using Newtonsoft.Json;
+using Xunit;
+
+namespace CognitiveEngine.Tests;
+
+public class TrialIntelligenceTests
+{
+    private const string FixedSessionJson =
+        "{\"schema_version\":\"1.0.0\",\"session_id\":\"sess-001\",\"exported_at_utc\":\"2025-03-24T12:00:00.0000000Z\",\"interaction_signals\":[{\"signal_id\":\"a1b2c3d4e5f6478990a1b2c3d4e5f601\",\"occurred_at_utc\":\"2025-03-24T12:00:01.0000000Z\",\"event_type\":\"compare\",\"product_id\":\"p-a\",\"intensity\":0.5,\"duration_ms\":1200}],\"preference_signals\":[{\"signal_id\":\"b2c3d4e5f6478990a1b2c3d4e5f6012\",\"derived_at_utc\":\"2025-03-24T12:00:02.0000000Z\",\"product_id\":\"p-a\",\"preference_strength\":0.7,\"basis\":\"dwell_weighted\"}],\"leaning_indicators\":[{\"product_id\":\"p-a\",\"leaning_score\":0.8,\"confidence\":0.6,\"rank\":1},{\"product_id\":\"p-b\",\"leaning_score\":0.2,\"confidence\":0.6,\"rank\":2}]}";
+
+    private const string FixedAggregateJson =
+        "{\"schema_version\":\"1.0.0\",\"aggregate_id\":\"agg-trial-1\",\"exported_at_utc\":\"2025-03-24T12:00:00.0000000Z\",\"product_id\":\"p-a\",\"sessions_contributed\":3,\"attraction\":{\"aggregate_attraction_score\":0.42,\"selection_count\":5,\"first_touch_rank\":2},\"engagement\":{\"total_dwell_ms\":9000,\"focused_view_count\":4,\"return_visit_count\":1},\"comparison_patterns\":{\"compare_events_count\":2,\"unique_comparison_partner_product_ids\":[\"p-b\",\"p-c\"],\"hesitation_aligned_event_count\":0}}";
+
+    [Fact]
+    public void SessionContract_RoundTrip_PreservesValues()
+    {
+        var original = new SessionContract
+        {
+            SessionId = "s1",
+            ExportedAtUtc = new DateTime(2025, 3, 24, 10, 0, 0, DateTimeKind.Utc).ToString("o"),
+            InteractionSignals =
+            {
+                new InteractionSignal
+                {
+                    SignalId = Guid.Parse("11111111-1111-1111-1111-111111111111").ToString("N"),
+                    OccurredAtUtc = new DateTime(2025, 3, 24, 10, 0, 1, DateTimeKind.Utc).ToString("o"),
+                    EventType = InteractionEventKind.Selection,
+                    ProductId = "prod-1",
+                    Intensity = 0.25,
+                    DurationMs = 500
+                }
+            },
+            PreferenceSignals =
+            {
+                new PreferenceSignal
+                {
+                    SignalId = Guid.Parse("22222222-2222-2222-2222-222222222222").ToString("N"),
+                    DerivedAtUtc = new DateTime(2025, 3, 24, 10, 0, 2, DateTimeKind.Utc).ToString("o"),
+                    ProductId = "prod-1",
+                    PreferenceStrength = 0.9,
+                    Basis = "selection_burst"
+                }
+            },
+            LeaningIndicators =
+            {
+                new LeaningIndicator { ProductId = "prod-1", LeaningScore = 1.0, Confidence = 0.5, Rank = 1 }
+            }
+        };
+
+        var json = ExportJson.Serialize(original);
+        var back = ExportJson.Deserialize<SessionContract>(json);
+
+        Assert.Equal(original.SchemaVersion, back.SchemaVersion);
+        Assert.Equal(original.SessionId, back.SessionId);
+        Assert.Equal(original.ExportedAtUtc, back.ExportedAtUtc);
+        Assert.Single(back.InteractionSignals);
+        Assert.Equal(InteractionEventKind.Selection, back.InteractionSignals[0].EventType);
+        Assert.Equal(0.25, back.InteractionSignals[0].Intensity);
+        Assert.Single(back.PreferenceSignals);
+        Assert.Single(back.LeaningIndicators);
+    }
+
+    [Fact]
+    public void SessionContract_GoldenJson_MatchesExpectedShape()
+    {
+        var parsed = ExportJson.Deserialize<SessionContract>(FixedSessionJson);
+        ContractValidation.ValidateSessionOrThrow(parsed);
+        var again = ExportJson.Serialize(parsed);
+        Assert.Equal(FixedSessionJson, again);
+    }
+
+    [Fact]
+    public void ProductAggregate_RoundTrip_PreservesValues()
+    {
+        var original = new ProductAggregate
+        {
+            AggregateId = "run-1",
+            ExportedAtUtc = new DateTime(2025, 1, 2, 3, 4, 5, DateTimeKind.Utc).ToString("o"),
+            ProductId = "p-x",
+            SessionsContributed = 10,
+            Attraction = new ProductAttraction
+            {
+                AggregateAttractionScore = 0.1,
+                SelectionCount = 2,
+                FirstTouchRank = null
+            },
+            Engagement = new ProductEngagement
+            {
+                TotalDwellMs = 100,
+                FocusedViewCount = 3,
+                ReturnVisitCount = 0
+            },
+            ComparisonPatterns = new ProductComparison
+            {
+                CompareEventsCount = 1,
+                UniqueComparisonPartnerProductIds = { "z", "a" },
+                HesitationAlignedEventCount = 7
+            }
+        };
+
+        var json = ExportJson.Serialize(original);
+        var back = ExportJson.Deserialize<ProductAggregate>(json);
+
+        Assert.Equal(10, back.SessionsContributed);
+        Assert.Null(back.Attraction.FirstTouchRank);
+        Assert.Equal(2, back.ComparisonPatterns.UniqueComparisonPartnerProductIds.Count);
+    }
+
+    [Fact]
+    public void ProductAggregate_GoldenJson_MatchesExpectedShape()
+    {
+        var parsed = ExportJson.Deserialize<ProductAggregate>(FixedAggregateJson);
+        ContractValidation.ValidateAggregateOrThrow(parsed);
+        var again = ExportJson.Serialize(parsed);
+        Assert.Equal(FixedAggregateJson, again);
+    }
+
+    [Fact]
+    public void Deserialize_Session_MissingRequired_Throws()
+    {
+        const string bad = "{\"session_id\":\"x\",\"exported_at_utc\":\"2025-03-24T12:00:00.0000000Z\",\"interaction_signals\":[],\"preference_signals\":[],\"leaning_indicators\":[]}";
+        Assert.Throws<JsonSerializationException>(() => ExportJson.Deserialize<SessionContract>(bad));
+    }
+
+    [Fact]
+    public void ValidateSession_InvalidUtc_Throws()
+    {
+        var c = new SessionContract
+        {
+            SessionId = "s",
+            ExportedAtUtc = "not-a-date",
+            InteractionSignals = new(),
+            PreferenceSignals = new(),
+            LeaningIndicators = new()
+        };
+        Assert.Throws<ArgumentException>(() => ContractValidation.ValidateSessionOrThrow(c));
+    }
+
+    [Fact]
+    public void ValidateSession_NonUtcTimestamp_Throws()
+    {
+        var local = new DateTime(2025, 3, 24, 12, 0, 0, DateTimeKind.Local).ToString("o");
+        var c = new SessionContract
+        {
+            SessionId = "s",
+            ExportedAtUtc = local,
+            InteractionSignals = new(),
+            PreferenceSignals = new(),
+            LeaningIndicators = new()
+        };
+        Assert.Throws<ArgumentException>(() => ContractValidation.ValidateSessionOrThrow(c));
+    }
+
+    [Fact]
+    public void ValidateAggregate_MissingNested_Throws()
+    {
+        var c = new ProductAggregate
+        {
+            AggregateId = "a",
+            ExportedAtUtc = new DateTime(2025, 3, 24, 12, 0, 0, DateTimeKind.Utc).ToString("o"),
+            ProductId = "p",
+            SessionsContributed = 1,
+            Attraction = null!
+        };
+        Assert.Throws<ArgumentException>(() => ContractValidation.ValidateAggregateOrThrow(c));
+    }
+
+    [Fact]
+    public void ExportJson_UsesSameRulesAsExposedSettings()
+    {
+        var s = ExportJson.CreateSettings();
+        Assert.Equal(ExportJson.Settings.NullValueHandling, s.NullValueHandling);
+        Assert.Equal(ExportJson.Settings.MissingMemberHandling, s.MissingMemberHandling);
+    }
+}
