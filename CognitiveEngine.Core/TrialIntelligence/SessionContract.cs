@@ -43,6 +43,14 @@ public sealed class InteractionSignal
 
     [JsonProperty("duration_ms", Order = 6)]
     public int? DurationMs { get; set; }
+
+    // Optional partner for compare-type interactions; allows product-level compare-network analysis.
+    [JsonProperty("comparison_partner_product_id", Order = 7)]
+    public string? ComparisonPartnerProductId { get; set; }
+
+    // Optional multi-partner representation for compare-type interactions that involve >1 candidates.
+    [JsonProperty("comparison_partner_product_ids", Order = 8)]
+    public List<string>? ComparisonPartnerProductIds { get; set; }
 }
 
 public sealed class PreferenceSignal

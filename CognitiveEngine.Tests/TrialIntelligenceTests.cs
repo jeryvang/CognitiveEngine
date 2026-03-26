@@ -174,4 +174,36 @@ public class TrialIntelligenceTests
         Assert.Equal(ExportJson.Settings.NullValueHandling, s.NullValueHandling);
         Assert.Equal(ExportJson.Settings.MissingMemberHandling, s.MissingMemberHandling);
     }
+
+    [Fact]
+    public void SessionContract_ComparePartnerFields_RoundTripWithNewtonsoft()
+    {
+        var c = new SessionContract
+        {
+            SessionId = "s-compare",
+            ExportedAtUtc = new DateTime(2025, 3, 24, 12, 0, 0, DateTimeKind.Utc).ToString("o"),
+            InteractionSignals =
+            {
+                new InteractionSignal
+                {
+                    SignalId = Guid.Parse("33333333-3333-3333-3333-333333333333").ToString("N"),
+                    OccurredAtUtc = new DateTime(2025, 3, 24, 12, 0, 1, DateTimeKind.Utc).ToString("o"),
+                    EventType = InteractionEventKind.Compare,
+                    ProductId = "p-a",
+                    ComparisonPartnerProductId = "p-b",
+                    ComparisonPartnerProductIds = new() { "p-c", "p-d" }
+                }
+            },
+            PreferenceSignals = new(),
+            LeaningIndicators = new()
+        };
+
+        var json = ExportJson.Serialize(c);
+        Assert.Contains("\"comparison_partner_product_id\":\"p-b\"", json);
+        Assert.Contains("\"comparison_partner_product_ids\":[\"p-c\",\"p-d\"]", json);
+
+        var back = ExportJson.Deserialize<SessionContract>(json);
+        Assert.Equal("p-b", back.InteractionSignals[0].ComparisonPartnerProductId);
+        Assert.Equal(2, back.InteractionSignals[0].ComparisonPartnerProductIds!.Count);
+    }
 }
