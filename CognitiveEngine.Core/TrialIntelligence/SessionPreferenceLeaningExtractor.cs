@@ -19,6 +19,15 @@ public static class SessionPreferenceLeaningExtractor
         string exportedAtUtc,
         IEnumerable<InteractionSignal> interactionSignals)
     {
+        return BuildSessionIntelligence(sessionId, exportedAtUtc, interactionSignals, null);
+    }
+
+    public static SessionContract BuildSessionIntelligence(
+        string sessionId,
+        string exportedAtUtc,
+        IEnumerable<InteractionSignal> interactionSignals,
+        IEnumerable<(string occurredAtUtc, StateType state)>? stateTimeline)
+    {
         if (string.IsNullOrWhiteSpace(sessionId))
             throw new ArgumentException("sessionId is required.", nameof(sessionId));
         if (interactionSignals == null)
@@ -36,13 +45,19 @@ public static class SessionPreferenceLeaningExtractor
         var preferenceSignals = DerivePreferenceSignals(sessionId, signals);
         var leaning = DeriveLeaningIndicators(preferenceSignals);
 
+        var normalizedStateTimeline = stateTimeline?.ToList() ?? signals
+            .Select(s => (s.OccurredAtUtc, InferStateFromInteraction(s)))
+            .ToList();
+        var frictionEpisodes = FrictionDetectionEngine.DetectFrictionEpisodes(sessionId, signals, normalizedStateTimeline);
+
         return new SessionContract
         {
             SessionId = sessionId,
             ExportedAtUtc = exportedAtUtc,
             InteractionSignals = signals,
             PreferenceSignals = preferenceSignals,
-            LeaningIndicators = leaning
+            LeaningIndicators = leaning,
+            FrictionEpisodes = frictionEpisodes
         };
     }
 
@@ -148,6 +163,18 @@ public static class SessionPreferenceLeaningExtractor
     }
 
     private static double Round4(double v) => Math.Round(v, 4, MidpointRounding.AwayFromZero);
+
+    private static StateType InferStateFromInteraction(InteractionSignal signal)
+    {
+        return signal.EventType switch
+        {
+            InteractionEventKind.Compare => StateType.Comparison,
+            InteractionEventKind.Dwell => StateType.Hesitation,
+            InteractionEventKind.Selection => StateType.Exploration,
+            InteractionEventKind.ConfirmIntent => StateType.ReadyToConfirm,
+            _ => StateType.Neutral
+        };
+    }
 
     private static string DeterministicGuidN(string input)
     {

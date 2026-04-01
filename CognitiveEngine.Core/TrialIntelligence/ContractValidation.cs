@@ -20,6 +20,8 @@ public static class ContractValidation
             throw new ArgumentException("preference_signals is required.", nameof(contract));
         if (contract.LeaningIndicators == null)
             throw new ArgumentException("leaning_indicators is required.", nameof(contract));
+        if (contract.FrictionEpisodes == null)
+            throw new ArgumentException("friction_episodes is required.", nameof(contract));
     }
 
     public static void ValidateAggregateOrThrow(ProductAggregate contract)

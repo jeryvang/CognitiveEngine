@@ -22,6 +22,9 @@ public sealed class SessionContract
 
     [JsonProperty("leaning_indicators", Order = 6, Required = Required.Always)]
     public List<LeaningIndicator> LeaningIndicators { get; set; } = new List<LeaningIndicator>();
+
+    [JsonProperty("friction_episodes", Order = 7, Required = Required.Always)]
+    public List<FrictionEpisode> FrictionEpisodes { get; set; } = new List<FrictionEpisode>();
 }
 
 public sealed class InteractionSignal
@@ -84,4 +87,38 @@ public sealed class LeaningIndicator
 
     [JsonProperty("rank", Order = 4, Required = Required.Always)]
     public int Rank { get; set; }
+}
+
+public sealed class FrictionEpisode
+{
+    [JsonProperty("episode_id", Order = 1, Required = Required.Always)]
+    public string EpisodeId { get; set; } = "";
+
+    [JsonProperty("product_id", Order = 2, Required = Required.Always)]
+    public string ProductId { get; set; } = "";
+
+    [JsonProperty("started_at_utc", Order = 3, Required = Required.Always)]
+    public string StartedAtUtc { get; set; } = "";
+
+    [JsonProperty("ended_at_utc", Order = 4, Required = Required.Always)]
+    public string EndedAtUtc { get; set; } = "";
+
+    [JsonProperty("friction_kind", Order = 5, Required = Required.Always)]
+    public FrictionKind FrictionKind { get; set; }
+
+    [JsonProperty("bottleneck_tag", Order = 6, Required = Required.Always)]
+    public string BottleneckTag { get; set; } = "";
+
+    [JsonProperty("event_count", Order = 7, Required = Required.Always)]
+    public int EventCount { get; set; }
+
+    [JsonProperty("total_dwell_ms", Order = 8, Required = Required.Always)]
+    public int TotalDwellMs { get; set; }
+}
+
+public enum FrictionKind
+{
+    ComparisonLoop,
+    HesitationBurst,
+    PostReadyBacktrack
 }
