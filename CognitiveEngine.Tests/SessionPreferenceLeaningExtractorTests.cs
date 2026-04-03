@@ -116,6 +116,39 @@ public class SessionPreferenceLeaningExtractorTests
         Assert.Contains("\"preference_signals\":[", j1);
         Assert.Contains("\"leaning_indicators\":[", j1);
         Assert.Contains("\"friction_episodes\":[", j1);
+        Assert.Contains("\"decision_readiness\":{", j1);
+        Assert.Contains("\"confidence_interpretation\":{", j1);
+        Assert.Contains("\"struggle_decision_summary\":{", j1);
+        Assert.Contains("\"basis\":\"leaning_friction_proxy_v1\"", j1);
+    }
+
+    [Fact]
+    public void BuildSessionIntelligence_WithConfidenceTrace_UsesTraceBasis()
+    {
+        var signals = new List<InteractionSignal>
+        {
+            new()
+            {
+                SignalId = "11111111111111111111111111111111",
+                OccurredAtUtc = "2025-03-24T12:00:00.0000000Z",
+                EventType = InteractionEventKind.Selection,
+                ProductId = "p-a"
+            }
+        };
+        var trace = new List<(string, float, CognitiveEngine.Core.StateType)>
+        {
+            ("2025-03-24T12:00:00.0000000Z", 0.7f, CognitiveEngine.Core.StateType.Exploration),
+            ("2025-03-24T12:00:01.0000000Z", 0.71f, CognitiveEngine.Core.StateType.Exploration)
+        };
+
+        var c = SessionPreferenceLeaningExtractor.BuildSessionIntelligence(
+            "sess-p4-conf",
+            "2025-03-24T12:00:05.0000000Z",
+            signals,
+            null,
+            trace);
+
+        Assert.Equal("confidence_trace_v1(mean,variance,half_delta,friction_penalty)", c.ConfidenceInterpretation.Basis);
     }
 
     [Fact]

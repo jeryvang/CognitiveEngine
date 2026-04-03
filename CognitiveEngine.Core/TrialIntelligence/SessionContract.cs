@@ -25,6 +25,15 @@ public sealed class SessionContract
 
     [JsonProperty("friction_episodes", Order = 7, Required = Required.Always)]
     public List<FrictionEpisode> FrictionEpisodes { get; set; } = new List<FrictionEpisode>();
+
+    [JsonProperty("decision_readiness", Order = 8, Required = Required.Always)]
+    public DecisionReadinessAssessment DecisionReadiness { get; set; } = new DecisionReadinessAssessment();
+
+    [JsonProperty("confidence_interpretation", Order = 9, Required = Required.Always)]
+    public ConfidenceInterpretation ConfidenceInterpretation { get; set; } = new ConfidenceInterpretation();
+
+    [JsonProperty("struggle_decision_summary", Order = 10, Required = Required.Always)]
+    public StruggleDecisionSummary StruggleDecisionSummary { get; set; } = new StruggleDecisionSummary();
 }
 
 public sealed class InteractionSignal
@@ -121,4 +130,74 @@ public enum FrictionKind
     ComparisonLoop,
     HesitationBurst,
     PostReadyBacktrack
+}
+
+public sealed class DecisionReadinessAssessment
+{
+    [JsonProperty("readiness_score", Order = 1, Required = Required.Always)]
+    public double ReadinessScore { get; set; }
+
+    [JsonProperty("readiness_level", Order = 2, Required = Required.Always)]
+    public DecisionReadinessLevel ReadinessLevel { get; set; }
+
+    [JsonProperty("is_ready_to_confirm", Order = 3, Required = Required.Always)]
+    public bool IsReadyToConfirm { get; set; }
+
+    [JsonProperty("dominant_product_id", Order = 4)]
+    public string? DominantProductId { get; set; }
+
+    [JsonProperty("basis", Order = 5, Required = Required.Always)]
+    public string Basis { get; set; } = "";
+}
+
+public enum DecisionReadinessLevel
+{
+    Low,
+    Medium,
+    High
+}
+
+public sealed class ConfidenceInterpretation
+{
+    [JsonProperty("stability_score", Order = 1, Required = Required.Always)]
+    public double StabilityScore { get; set; }
+
+    [JsonProperty("trend", Order = 2, Required = Required.Always)]
+    public ConfidenceTrend Trend { get; set; }
+
+    [JsonProperty("interpretation", Order = 3, Required = Required.Always)]
+    public string Interpretation { get; set; } = "";
+
+    [JsonProperty("basis", Order = 4)]
+    public string Basis { get; set; } = "";
+}
+
+public enum ConfidenceTrend
+{
+    Unstable,
+    Improving,
+    Stabilized
+}
+
+public sealed class StruggleDecisionSummary
+{
+    [JsonProperty("journey_classification", Order = 1, Required = Required.Always)]
+    public JourneyClassification JourneyClassification { get; set; }
+
+    [JsonProperty("struggle_score", Order = 2, Required = Required.Always)]
+    public double StruggleScore { get; set; }
+
+    [JsonProperty("decision_signal_score", Order = 3, Required = Required.Always)]
+    public double DecisionSignalScore { get; set; }
+
+    [JsonProperty("summary_tag", Order = 4, Required = Required.Always)]
+    public string SummaryTag { get; set; } = "";
+}
+
+public enum JourneyClassification
+{
+    Indecisive,
+    Struggling,
+    Balanced,
+    Decisive
 }

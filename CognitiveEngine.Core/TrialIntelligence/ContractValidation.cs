@@ -22,6 +22,12 @@ public static class ContractValidation
             throw new ArgumentException("leaning_indicators is required.", nameof(contract));
         if (contract.FrictionEpisodes == null)
             throw new ArgumentException("friction_episodes is required.", nameof(contract));
+        if (contract.DecisionReadiness == null)
+            throw new ArgumentException("decision_readiness is required.", nameof(contract));
+        if (contract.ConfidenceInterpretation == null)
+            throw new ArgumentException("confidence_interpretation is required.", nameof(contract));
+        if (contract.StruggleDecisionSummary == null)
+            throw new ArgumentException("struggle_decision_summary is required.", nameof(contract));
     }
 
     public static void ValidateAggregateOrThrow(ProductAggregate contract)

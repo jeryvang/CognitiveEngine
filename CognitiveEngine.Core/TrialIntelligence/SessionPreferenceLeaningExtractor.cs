@@ -19,7 +19,7 @@ public static class SessionPreferenceLeaningExtractor
         string exportedAtUtc,
         IEnumerable<InteractionSignal> interactionSignals)
     {
-        return BuildSessionIntelligence(sessionId, exportedAtUtc, interactionSignals, null);
+        return BuildSessionIntelligence(sessionId, exportedAtUtc, interactionSignals, null, null);
     }
 
     public static SessionContract BuildSessionIntelligence(
@@ -27,6 +27,19 @@ public static class SessionPreferenceLeaningExtractor
         string exportedAtUtc,
         IEnumerable<InteractionSignal> interactionSignals,
         IEnumerable<(string occurredAtUtc, StateType state)>? stateTimeline)
+    {
+        return BuildSessionIntelligence(sessionId, exportedAtUtc, interactionSignals, stateTimeline, null);
+    }
+
+    /// <summary>
+    /// Optional per-tick confidence trace: same ordering as engine ticks; used for Step 5 confidence interpretation when provided.
+    /// </summary>
+    public static SessionContract BuildSessionIntelligence(
+        string sessionId,
+        string exportedAtUtc,
+        IEnumerable<InteractionSignal> interactionSignals,
+        IEnumerable<(string occurredAtUtc, StateType state)>? stateTimeline,
+        IEnumerable<(string occurredAtUtc, float confidence, StateType state)>? confidenceTrace)
     {
         if (string.IsNullOrWhiteSpace(sessionId))
             throw new ArgumentException("sessionId is required.", nameof(sessionId));
@@ -49,6 +62,9 @@ public static class SessionPreferenceLeaningExtractor
             .Select(s => (s.OccurredAtUtc, InferStateFromInteraction(s)))
             .ToList();
         var frictionEpisodes = FrictionDetectionEngine.DetectFrictionEpisodes(sessionId, signals, normalizedStateTimeline);
+        var traceList = confidenceTrace?.ToList();
+        var (readiness, confidenceInterpretation, struggleSummary) =
+            DecisionReadinessEngine.Evaluate(signals, leaning, frictionEpisodes, traceList);
 
         return new SessionContract
         {
@@ -57,7 +73,10 @@ public static class SessionPreferenceLeaningExtractor
             InteractionSignals = signals,
             PreferenceSignals = preferenceSignals,
             LeaningIndicators = leaning,
-            FrictionEpisodes = frictionEpisodes
+            FrictionEpisodes = frictionEpisodes,
+            DecisionReadiness = readiness,
+            ConfidenceInterpretation = confidenceInterpretation,
+            StruggleDecisionSummary = struggleSummary
         };
     }
 
