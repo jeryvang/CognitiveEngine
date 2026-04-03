@@ -103,6 +103,111 @@ public static class ProductAggregationEngine
                 .OrderBy(id => id, StringComparer.Ordinal)
                 .ToList();
 
+            var frictionEpisodesForProduct = contributedSessions
+                .SelectMany(s => s.FrictionEpisodes ?? new List<FrictionEpisode>())
+                .Where(e => e.ProductId == productId)
+                .ToList();
+
+            var frictionHotspots = frictionEpisodesForProduct
+                .GroupBy(e => new { e.FrictionKind, e.BottleneckTag })
+                .Select(g => new ProductFrictionHotspot
+                {
+                    FrictionKind = g.Key.FrictionKind,
+                    BottleneckTag = g.Key.BottleneckTag,
+                    EpisodesCount = g.Count(),
+                    TotalEventCount = g.Sum(x => x.EventCount),
+                    TotalDwellMs = g.Sum(x => (long)x.TotalDwellMs)
+                })
+                .OrderByDescending(h => h.EpisodesCount)
+                .ThenByDescending(h => h.TotalDwellMs)
+                .ThenBy(h => h.FrictionKind)
+                .ThenBy(h => h.BottleneckTag, StringComparer.Ordinal)
+                .ToList();
+
+            var sessionsForProductStruggle = contributedSessions
+                .Where(s =>
+                    (s.FrictionEpisodes ?? new List<FrictionEpisode>()).Any(e => e.ProductId == productId) ||
+                    string.Equals(s.DecisionReadiness?.DominantProductId, productId, StringComparison.Ordinal))
+                .OrderBy(s => s.SessionId, StringComparer.Ordinal)
+                .ToList();
+
+            var productStruggleScores = sessionsForProductStruggle
+                .Select(s => Clamp01(s.StruggleDecisionSummary?.StruggleScore ?? 0.0))
+                .ToList();
+
+            double averageProductStruggleScore = productStruggleScores.Count == 0
+                ? 0.0
+                : Round4(MeanOrZero(productStruggleScores));
+
+            ProductTrendDirection struggleDirection;
+            if (productStruggleScores.Count < 2)
+            {
+                struggleDirection = ProductTrendDirection.Stable;
+            }
+            else
+            {
+                int k = productStruggleScores.Count / 2;
+                double firstAvg = MeanOrZero(productStruggleScores.Take(k));
+                double secondAvg = MeanOrZero(productStruggleScores.Skip(k));
+                double delta = secondAvg - firstAvg;
+                struggleDirection = delta >= 0.05
+                    ? ProductTrendDirection.Worsening
+                    : delta <= -0.05
+                        ? ProductTrendDirection.Improving
+                        : ProductTrendDirection.Stable;
+            }
+
+            var journeyCounts = new ProductJourneyClassificationCounts
+            {
+                IndecisiveCount = sessionsForProductStruggle.Count(s =>
+                    s.StruggleDecisionSummary.JourneyClassification == JourneyClassification.Indecisive),
+                StrugglingCount = sessionsForProductStruggle.Count(s =>
+                    s.StruggleDecisionSummary.JourneyClassification == JourneyClassification.Struggling),
+                BalancedCount = sessionsForProductStruggle.Count(s =>
+                    s.StruggleDecisionSummary.JourneyClassification == JourneyClassification.Balanced),
+                DecisiveCount = sessionsForProductStruggle.Count(s =>
+                    s.StruggleDecisionSummary.JourneyClassification == JourneyClassification.Decisive)
+            };
+
+            var dominantSessions = contributedSessions
+                .Where(s => string.Equals(s.DecisionReadiness?.DominantProductId, productId, StringComparison.Ordinal))
+                .OrderBy(s => s.SessionId, StringComparer.Ordinal)
+                .ToList();
+
+            var dominantReadinessScores = dominantSessions
+                .Select(s => s.DecisionReadiness.ReadinessScore)
+                .ToList();
+
+            double averageReadinessScoreWhenDominant = dominantReadinessScores.Count == 0
+                ? 0.0
+                : Round4(MeanOrZero(dominantReadinessScores));
+
+            ProductTrendDirection readinessDirection;
+            if (dominantReadinessScores.Count < 2)
+            {
+                readinessDirection = ProductTrendDirection.Stable;
+            }
+            else
+            {
+                int k = dominantReadinessScores.Count / 2;
+                double firstAvg = MeanOrZero(dominantReadinessScores.Take(k));
+                double secondAvg = MeanOrZero(dominantReadinessScores.Skip(k));
+                double delta = secondAvg - firstAvg;
+                readinessDirection = delta >= 0.05
+                    ? ProductTrendDirection.Improving
+                    : delta <= -0.05
+                        ? ProductTrendDirection.Worsening
+                        : ProductTrendDirection.Stable;
+            }
+
+            var readinessCounts = new ProductReadinessLevelCounts
+            {
+                LowCount = dominantSessions.Count(s => s.DecisionReadiness.ReadinessLevel == DecisionReadinessLevel.Low),
+                MediumCount = dominantSessions.Count(s =>
+                    s.DecisionReadiness.ReadinessLevel == DecisionReadinessLevel.Medium),
+                HighCount = dominantSessions.Count(s => s.DecisionReadiness.ReadinessLevel == DecisionReadinessLevel.High)
+            };
+
             output.Add(new ProductAggregate
             {
                 AggregateId = aggregateId,
@@ -126,6 +231,28 @@ public static class ProductAggregationEngine
                     CompareEventsCount = compareEvents,
                     UniqueComparisonPartnerProductIds = uniqueComparisonPartners,
                     HesitationAlignedEventCount = hesitationAligned
+                },
+                FrictionHotspots = new ProductFrictionHotspots
+                {
+                    TotalFrictionEpisodesCount = frictionEpisodesForProduct.Count,
+                    TotalFrictionEventCount = frictionEpisodesForProduct.Sum(e => e.EventCount),
+                    TotalFrictionDwellMs = frictionEpisodesForProduct.Sum(e => (long)e.TotalDwellMs),
+                    Hotspots = frictionHotspots
+                },
+                StruggleTrends = new ProductStruggleTrends
+                {
+                    AverageProductStruggleScore = averageProductStruggleScore,
+                    StruggleTrendDirection = struggleDirection,
+                    JourneyClassificationCounts = journeyCounts
+                },
+                ReadinessTrends = new ProductReadinessTrends
+                {
+                    DominantProductSessionsContributing = dominantSessions.Count,
+                    AverageReadinessScoreWhenDominant = averageReadinessScoreWhenDominant,
+                    ReadyToConfirmSessionsCountWhenDominant = dominantSessions.Count(s =>
+                        s.DecisionReadiness.IsReadyToConfirm),
+                    ReadinessLevelCountsWhenDominant = readinessCounts,
+                    ReadinessTrendDirection = readinessDirection
                 }
             });
         }
@@ -212,6 +339,13 @@ public static class ProductAggregationEngine
             n++;
         }
         return n == 0 ? 0.0 : sum / n;
+    }
+
+    private static double Clamp01(double v)
+    {
+        if (v < 0.0) return 0.0;
+        if (v > 1.0) return 1.0;
+        return v;
     }
 
     private static double Round4(double v) => Math.Round(v, 4, MidpointRounding.AwayFromZero);

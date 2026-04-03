@@ -50,6 +50,23 @@ public static class ContractValidation
         if (contract.ComparisonPatterns.UniqueComparisonPartnerProductIds == null)
             throw new ArgumentException(
                 "comparison_patterns.unique_comparison_partner_product_ids is required.", nameof(contract));
+
+        if (contract.FrictionHotspots == null)
+            throw new ArgumentException("friction_hotspots is required.", nameof(contract));
+        if (contract.FrictionHotspots.Hotspots == null)
+            throw new ArgumentException("friction_hotspots.hotspots is required.", nameof(contract));
+
+        if (contract.StruggleTrends == null)
+            throw new ArgumentException("struggle_trends is required.", nameof(contract));
+        if (contract.StruggleTrends.JourneyClassificationCounts == null)
+            throw new ArgumentException(
+                "struggle_trends.journey_classification_counts is required.", nameof(contract));
+
+        if (contract.ReadinessTrends == null)
+            throw new ArgumentException("readiness_trends is required.", nameof(contract));
+        if (contract.ReadinessTrends.ReadinessLevelCountsWhenDominant == null)
+            throw new ArgumentException(
+                "readiness_trends.readiness_level_counts_when_dominant is required.", nameof(contract));
     }
 
     private static void ThrowIfUtcMissing(string fieldName, string? value)
