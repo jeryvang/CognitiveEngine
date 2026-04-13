@@ -30,6 +30,16 @@ public sealed class DecisionTriggerResolver
         _lastEmittedComparePairKey = null;
     }
 
+    /// <summary>
+    /// Clears duplicate-emission suppression so the last resolver emission can be re-offered when primary
+    /// presentation refused it (busy pipeline, panel open, or panel cooldown — not repeat guard).
+    /// </summary>
+    public void ClearEmitSuppression()
+    {
+        _lastEmittedSignature = null;
+        _lastEmittedComparePairKey = null;
+    }
+
     /// <summary>Single-signal convenience; same as <see cref="AdvanceFrame"/> with one field set.</summary>
     public ResolvedDecisionTrigger? Advance(in DecisionTriggerInput input) =>
         AdvanceFrame(DecisionTriggerFrame.FromInput(in input));

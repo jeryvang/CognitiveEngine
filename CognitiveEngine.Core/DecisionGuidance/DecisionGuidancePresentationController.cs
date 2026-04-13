@@ -46,6 +46,16 @@ public sealed class DecisionGuidancePresentationController
 
     public bool IsPanelOpen => _panelOpen;
 
+    public bool IsPanelCooldownActive => _nowMs < _panelCooldownUntilMs;
+
+    /// <summary>True if the same trigger signature is still inside the presentation repeat-guard window.</summary>
+    public bool WouldRepeatGuardBlock(ResolvedDecisionTrigger trigger)
+    {
+        PruneExpiredRepeatGuards();
+        var sig = ResolvedDecisionTrigger.Signature(trigger);
+        return _repeatGuardUntilMs.TryGetValue(sig, out var until) && _nowMs < until;
+    }
+
     /// <summary>True while primary output is waiting, visible, or fading (blocks stacking a second full output).</summary>
     public bool IsPrimaryPipelineActive =>
         _phase is DecisionPresentationPhase.AppearancePending
