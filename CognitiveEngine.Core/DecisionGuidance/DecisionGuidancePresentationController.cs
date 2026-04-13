@@ -114,6 +114,11 @@ public sealed class DecisionGuidancePresentationController
     }
 
     /// <summary>
+    /// Cancels appearance/visible/fade without applying repeat guard (fast product switch, explicit select, session reset).
+    /// </summary>
+    public void CancelPrimaryPipeline() => AbortPipelineWithoutRepeatGuard();
+
+    /// <summary>
     /// Attempts to start the primary output timeline. Returns false if suppressed (panel, pipeline busy,
     /// panel-close cooldown, or repeat guard for the same trigger signature).
     /// </summary>
