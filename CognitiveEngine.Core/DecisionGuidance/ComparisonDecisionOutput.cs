@@ -24,4 +24,7 @@ public sealed class ComparisonDecisionOutput
 
     [JsonProperty("which_to_choose_if", Order = 6, Required = Required.Always)]
     public string WhichToChooseIf { get; set; } = "";
+
+    [JsonProperty("behavior_context", Order = 7, DefaultValueHandling = DefaultValueHandling.Ignore)]
+    public DecisionBehaviorContext? BehaviorContext { get; set; }
 }

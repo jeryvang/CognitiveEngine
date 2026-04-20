@@ -8,4 +8,6 @@ public static class DecisionGuidanceSchema
     public const string ConfigVersion = "p6.config.v1";
 
     public const string StructuredOutputVersion = "p6.output.v1";
+
+    public const string BehaviorContextVersion = "p7.behavior_context.v1";
 }

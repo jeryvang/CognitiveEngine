@@ -21,4 +21,7 @@ public sealed class SingleProductDecisionOutput
 
     [JsonProperty("what_you_trade_off", Order = 5, Required = Required.Always)]
     public string WhatYouTradeOff { get; set; } = "";
+
+    [JsonProperty("behavior_context", Order = 6, DefaultValueHandling = DefaultValueHandling.Ignore)]
+    public DecisionBehaviorContext? BehaviorContext { get; set; }
 }
