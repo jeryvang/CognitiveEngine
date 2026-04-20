@@ -59,14 +59,20 @@ public sealed class DecisionGuidanceRuntime
     /// <summary>
     /// Host-defined compare UI state: call when the user enters compare mode. Used for measurement only.
     /// </summary>
-    public void NotifyCompareEntered() =>
+    public void NotifyCompareEntered()
+    {
+        _session.NotifyCompareEntered();
         _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.CompareEntered, _session.Presentation.LogicalNowMs));
+    }
 
     /// <summary>
     /// Host-defined compare UI state: call when the user exits compare mode. Used for measurement only.
     /// </summary>
-    public void NotifyCompareExited() =>
+    public void NotifyCompareExited()
+    {
+        _session.NotifyCompareExited();
         _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.CompareExited, _session.Presentation.LogicalNowMs));
+    }
 
     public void SetPanelOpen(bool isOpen) => _session.SetPanelOpen(isOpen);
 
@@ -103,7 +109,10 @@ public sealed class DecisionGuidanceRuntime
         if (!string.IsNullOrWhiteSpace(frame.FocusProductIfChanged))
             _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.FocusChanged, _session.Presentation.LogicalNowMs, frame.FocusProductIfChanged));
         if (frame.CompareInvoked)
+        {
+            _session.NotifyCompareInvoked();
             _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.CompareInvoked, _session.Presentation.LogicalNowMs));
+        }
         if (!string.IsNullOrWhiteSpace(frame.DwellProductIfThreshold))
             _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.DwellThresholdMet, _session.Presentation.LogicalNowMs, frame.DwellProductIfThreshold));
 

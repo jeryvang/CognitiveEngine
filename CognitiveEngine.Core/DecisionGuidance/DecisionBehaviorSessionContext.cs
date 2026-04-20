@@ -15,6 +15,8 @@ public sealed class DecisionBehaviorSessionContext
         new(StringComparer.Ordinal);
     private readonly SortedDictionary<string, int> _revisitCountByProduct =
         new(StringComparer.Ordinal);
+    private readonly SortedDictionary<string, int> _comparePairCount =
+        new(StringComparer.Ordinal);
     private readonly HashSet<string> _visitedProducts = new(StringComparer.Ordinal);
 
     public long LogicalNowMs { get; private set; }
@@ -31,6 +33,18 @@ public sealed class DecisionBehaviorSessionContext
 
     public int RevisitCount { get; private set; }
 
+    public int CompareCount { get; private set; }
+
+    public bool IsCompareActive { get; private set; }
+
+    public string? LastCompareProductIdA { get; private set; }
+
+    public string? LastCompareProductIdB { get; private set; }
+
+    public long? LastCompareEnteredLogicalMs { get; private set; }
+
+    public long? LastCompareExitedLogicalMs { get; private set; }
+
     public string? LastSelectedProductId { get; private set; }
 
     public long? LastSelectedLogicalMs { get; private set; }
@@ -44,11 +58,18 @@ public sealed class DecisionBehaviorSessionContext
         SelectionCount = 0;
         SwipeCount = 0;
         RevisitCount = 0;
+        CompareCount = 0;
+        IsCompareActive = false;
+        LastCompareProductIdA = null;
+        LastCompareProductIdB = null;
+        LastCompareEnteredLogicalMs = null;
+        LastCompareExitedLogicalMs = null;
         LastSelectedProductId = null;
         LastSelectedLogicalMs = null;
         _selectionCountByProduct.Clear();
         _swipeTransitionCount.Clear();
         _revisitCountByProduct.Clear();
+        _comparePairCount.Clear();
         _visitedProducts.Clear();
     }
 
@@ -101,6 +122,30 @@ public sealed class DecisionBehaviorSessionContext
         _selectionCountByProduct[productId] = prior + 1;
     }
 
+    public void RecordCompareInvoked(string? productIdA, string? productIdB)
+    {
+        CompareCount++;
+        if (!TryBuildPairKey(productIdA, productIdB, out var productLow, out var productHigh, out var key))
+            return;
+
+        LastCompareProductIdA = productLow;
+        LastCompareProductIdB = productHigh;
+        _comparePairCount.TryGetValue(key, out var prior);
+        _comparePairCount[key] = prior + 1;
+    }
+
+    public void RecordCompareEntered()
+    {
+        IsCompareActive = true;
+        LastCompareEnteredLogicalMs = LogicalNowMs;
+    }
+
+    public void RecordCompareExited()
+    {
+        IsCompareActive = false;
+        LastCompareExitedLogicalMs = LogicalNowMs;
+    }
+
     public int GetSelectionCount(string productId)
     {
         if (string.IsNullOrWhiteSpace(productId))
@@ -130,4 +175,44 @@ public sealed class DecisionBehaviorSessionContext
     }
 
     public IReadOnlyDictionary<string, int> GetRevisitCountsByProduct() => _revisitCountByProduct;
+
+    public int GetComparePairCount(string productIdA, string productIdB)
+    {
+        if (!TryBuildPairKey(productIdA, productIdB, out _, out _, out var key))
+            throw new ArgumentException("Both compare product ids must be non-empty and distinct.");
+        return _comparePairCount.TryGetValue(key, out var count) ? count : 0;
+    }
+
+    public IReadOnlyDictionary<string, int> GetComparePairCounts() => _comparePairCount;
+
+    private static bool TryBuildPairKey(
+        string? productIdA,
+        string? productIdB,
+        out string productLow,
+        out string productHigh,
+        out string key)
+    {
+        productLow = "";
+        productHigh = "";
+        key = "";
+
+        if (string.IsNullOrWhiteSpace(productIdA) ||
+            string.IsNullOrWhiteSpace(productIdB) ||
+            string.Equals(productIdA, productIdB, StringComparison.Ordinal))
+            return false;
+
+        if (string.CompareOrdinal(productIdA, productIdB) <= 0)
+        {
+            productLow = productIdA;
+            productHigh = productIdB;
+        }
+        else
+        {
+            productLow = productIdB;
+            productHigh = productIdA;
+        }
+
+        key = productLow + "|" + productHigh;
+        return true;
+    }
 }

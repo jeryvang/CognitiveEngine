@@ -64,6 +64,13 @@ public sealed class DecisionGuidanceSessionCoordinator
 
     public void SetPanelOpen(bool isOpen) => _presentation.SetPanelOpen(isOpen);
 
+    public void NotifyCompareInvoked() =>
+        _behaviorSession.RecordCompareInvoked(_behaviorSession.CurrentProductId, _behaviorSession.PreviousProductId);
+
+    public void NotifyCompareEntered() => _behaviorSession.RecordCompareEntered();
+
+    public void NotifyCompareExited() => _behaviorSession.RecordCompareExited();
+
     /// <summary>
     /// Call when the user focuses a different product. Cancels an in-flight primary pipeline (pending timers),
     /// clears sustained-stay tracking, advances resolver revisit/MRU state, and clears decision suppression
