@@ -20,6 +20,8 @@ public sealed class DecisionBehaviorSessionContext
         new(StringComparer.Ordinal);
     private readonly SortedDictionary<string, int> _dwellCountByProduct =
         new(StringComparer.Ordinal);
+    private readonly SortedDictionary<string, int> _focusCountByProduct =
+        new(StringComparer.Ordinal);
     private readonly HashSet<string> _visitedProducts = new(StringComparer.Ordinal);
 
     public int SessionGeneration { get; private set; } = 1;
@@ -93,6 +95,7 @@ public sealed class DecisionBehaviorSessionContext
         _revisitCountByProduct.Clear();
         _comparePairCount.Clear();
         _dwellCountByProduct.Clear();
+        _focusCountByProduct.Clear();
         _visitedProducts.Clear();
     }
 
@@ -130,6 +133,8 @@ public sealed class DecisionBehaviorSessionContext
         PreviousProductId = CurrentProductId;
         CurrentProductId = productId;
         _visitedProducts.Add(productId);
+        _focusCountByProduct.TryGetValue(productId, out var priorFocusCount);
+        _focusCountByProduct[productId] = priorFocusCount + 1;
         FocusSwitchCount++;
     }
 
@@ -289,6 +294,38 @@ public sealed class DecisionBehaviorSessionContext
             return 0.0;
 
         return (double)GetComparePairCount(productIdA, productIdB) / max;
+    }
+
+    public int GetFocusCount(string productId)
+    {
+        if (string.IsNullOrWhiteSpace(productId))
+            throw new ArgumentException("productId is required.", nameof(productId));
+        return _focusCountByProduct.TryGetValue(productId, out var count) ? count : 0;
+    }
+
+    public IReadOnlyDictionary<string, int> GetFocusCountsByProduct() => _focusCountByProduct;
+
+    public bool IsRepeatedFocus(string productId, int minFocusCount = 2)
+    {
+        if (string.IsNullOrWhiteSpace(productId))
+            throw new ArgumentException("productId is required.", nameof(productId));
+        if (minFocusCount < 1)
+            throw new ArgumentOutOfRangeException(nameof(minFocusCount), minFocusCount, "minFocusCount must be >= 1.");
+
+        return GetFocusCount(productId) >= minFocusCount;
+    }
+
+    public bool IsCurrentProductRepeatedFocus(int minFocusCount = 2) =>
+        !string.IsNullOrWhiteSpace(CurrentProductId) && IsRepeatedFocus(CurrentProductId, minFocusCount);
+
+    public int GetTotalBehaviorEvidenceCount() =>
+        SelectionCount + DwellCount + SwipeCount + CompareCount + RevisitCount;
+
+    public bool IsWeakBehaviorSignal(int minimumEvidenceCount = 3)
+    {
+        if (minimumEvidenceCount < 0)
+            throw new ArgumentOutOfRangeException(nameof(minimumEvidenceCount), minimumEvidenceCount, "minimumEvidenceCount must be non-negative.");
+        return GetTotalBehaviorEvidenceCount() < minimumEvidenceCount;
     }
 
     private static bool TryBuildPairKey(
