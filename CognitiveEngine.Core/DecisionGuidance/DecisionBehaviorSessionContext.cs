@@ -251,6 +251,23 @@ public sealed class DecisionBehaviorSessionContext
 
     public IReadOnlyDictionary<string, int> GetRevisitCountsByProduct() => _revisitCountByProduct;
 
+    public int GetRevisitEvidenceTotal() => _revisitCountByProduct.Values.Sum();
+
+    public int GetRevisitEvidenceMaxPerProduct() =>
+        _revisitCountByProduct.Count == 0 ? 0 : _revisitCountByProduct.Values.Max();
+
+    public double GetRevisitEvidenceNormalizedStrength(string productId)
+    {
+        if (string.IsNullOrWhiteSpace(productId))
+            throw new ArgumentException("productId is required.", nameof(productId));
+
+        var max = GetRevisitEvidenceMaxPerProduct();
+        if (max <= 0)
+            return 0.0;
+
+        return (double)GetRevisitCount(productId) / max;
+    }
+
     public int GetComparePairCount(string productIdA, string productIdB)
     {
         if (!TryBuildPairKey(productIdA, productIdB, out _, out _, out var key))
@@ -259,6 +276,20 @@ public sealed class DecisionBehaviorSessionContext
     }
 
     public IReadOnlyDictionary<string, int> GetComparePairCounts() => _comparePairCount;
+
+    public int GetCompareEvidenceTotal() => _comparePairCount.Values.Sum();
+
+    public int GetCompareEvidenceMaxPerPair() =>
+        _comparePairCount.Count == 0 ? 0 : _comparePairCount.Values.Max();
+
+    public double GetCompareEvidenceNormalizedStrength(string productIdA, string productIdB)
+    {
+        var max = GetCompareEvidenceMaxPerPair();
+        if (max <= 0)
+            return 0.0;
+
+        return (double)GetComparePairCount(productIdA, productIdB) / max;
+    }
 
     private static bool TryBuildPairKey(
         string? productIdA,
