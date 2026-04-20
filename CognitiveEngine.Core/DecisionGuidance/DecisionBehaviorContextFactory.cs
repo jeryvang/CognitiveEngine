@@ -8,6 +8,9 @@ namespace CognitiveEngine.Core.DecisionGuidance;
 /// </summary>
 public static class DecisionBehaviorContextFactory
 {
+    private const double WeakSignalMaxConfidence = 0.25;
+    private const double WeakSignalMaxNormalizedStrength = 0.25;
+
     public static DecisionBehaviorContext Create(
         DecisionBehaviorSessionContext session,
         in ResolvedDecisionTrigger trigger)
@@ -15,12 +18,23 @@ public static class DecisionBehaviorContextFactory
         if (session == null) throw new ArgumentNullException(nameof(session));
 
         var preference = ResolvePreference(session, in trigger);
+        var weakSignal = session.IsWeakBehaviorSignal();
+        if (weakSignal)
+        {
+            preference = DecisionPreferenceResult.NoClearLean(
+                Math.Min(preference.Confidence, WeakSignalMaxConfidence),
+                "context_v1:weak_signal_fallback");
+        }
+
         var rationale = ResolveRationale(session, preference, in trigger);
+        var signalUsage = BuildSignalUsage(session, in trigger);
+        if (weakSignal)
+            signalUsage.NormalizedSignalStrength = Math.Min(signalUsage.NormalizedSignalStrength, WeakSignalMaxNormalizedStrength);
 
         return new DecisionBehaviorContext
         {
             SessionScope = "session",
-            BehaviorSignalUsage = BuildSignalUsage(session, in trigger),
+            BehaviorSignalUsage = signalUsage,
             PreferenceIndication = new PreferenceIndication
             {
                 Leaning = preference.Leaning,
