@@ -14,6 +14,7 @@ public sealed class DecisionGuidanceSessionCoordinator
     private readonly DecisionGuidanceMode _mode;
     private readonly DecisionTriggerResolver _resolver = new();
     private readonly DecisionGuidancePresentationController _presentation;
+    private readonly DecisionBehaviorSessionContext _behaviorSession = new();
 
     private string? _lastFocusedProductId;
 
@@ -37,6 +38,8 @@ public sealed class DecisionGuidanceSessionCoordinator
 
     public DecisionGuidancePresentationController Presentation => _presentation;
 
+    public DecisionBehaviorSessionContext BehaviorSession => _behaviorSession;
+
     public string? CurrentFocusedProductId => _lastFocusedProductId;
 
     public string? ConfirmedProductId => _confirmedProductId;
@@ -52,6 +55,7 @@ public sealed class DecisionGuidanceSessionCoordinator
     {
         _resolver.Reset();
         _presentation.Reset();
+        _behaviorSession.Reset();
         _lastFocusedProductId = null;
         _confirmedProductId = null;
         _sustainedStayStartMs = null;
@@ -84,6 +88,7 @@ public sealed class DecisionGuidanceSessionCoordinator
         _sustainedStayProductId = null;
 
         _resolver.Advance(DecisionTriggerInput.FocusChanged(productId));
+        _behaviorSession.RecordFocusChanged(productId);
         _lastFocusedProductId = productId;
     }
 
@@ -96,6 +101,7 @@ public sealed class DecisionGuidanceSessionCoordinator
         if (_mode == DecisionGuidanceMode.Test)
             return;
 
+        _behaviorSession.RecordSelect(productId);
         _confirmedProductId = productId;
         _presentation.CancelPrimaryPipeline();
         _sustainedStayStartMs = null;
@@ -118,6 +124,7 @@ public sealed class DecisionGuidanceSessionCoordinator
     {
         var phaseBefore = _presentation.Phase;
         _presentation.AdvanceMs(deltaMs);
+        _behaviorSession.SetLogicalNow(_presentation.LogicalNowMs);
         var phaseAfter = _presentation.Phase;
 
         if (phaseBefore != DecisionPresentationPhase.PrimaryVisible &&
