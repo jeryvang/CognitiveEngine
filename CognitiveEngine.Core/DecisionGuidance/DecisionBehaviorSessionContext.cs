@@ -13,6 +13,9 @@ public sealed class DecisionBehaviorSessionContext
         new(StringComparer.Ordinal);
     private readonly SortedDictionary<string, int> _swipeTransitionCount =
         new(StringComparer.Ordinal);
+    private readonly SortedDictionary<string, int> _revisitCountByProduct =
+        new(StringComparer.Ordinal);
+    private readonly HashSet<string> _visitedProducts = new(StringComparer.Ordinal);
 
     public long LogicalNowMs { get; private set; }
 
@@ -26,6 +29,8 @@ public sealed class DecisionBehaviorSessionContext
 
     public int SwipeCount { get; private set; }
 
+    public int RevisitCount { get; private set; }
+
     public string? LastSelectedProductId { get; private set; }
 
     public long? LastSelectedLogicalMs { get; private set; }
@@ -38,10 +43,13 @@ public sealed class DecisionBehaviorSessionContext
         FocusSwitchCount = 0;
         SelectionCount = 0;
         SwipeCount = 0;
+        RevisitCount = 0;
         LastSelectedProductId = null;
         LastSelectedLogicalMs = null;
         _selectionCountByProduct.Clear();
         _swipeTransitionCount.Clear();
+        _revisitCountByProduct.Clear();
+        _visitedProducts.Clear();
     }
 
     public void SetLogicalNow(long logicalNowMs)
@@ -60,6 +68,13 @@ public sealed class DecisionBehaviorSessionContext
         if (string.Equals(CurrentProductId, productId, StringComparison.Ordinal))
             return;
 
+        if (_visitedProducts.Contains(productId))
+        {
+            RevisitCount++;
+            _revisitCountByProduct.TryGetValue(productId, out var priorRevisitCount);
+            _revisitCountByProduct[productId] = priorRevisitCount + 1;
+        }
+
         if (CurrentProductId != null)
         {
             SwipeCount++;
@@ -70,6 +85,7 @@ public sealed class DecisionBehaviorSessionContext
 
         PreviousProductId = CurrentProductId;
         CurrentProductId = productId;
+        _visitedProducts.Add(productId);
         FocusSwitchCount++;
     }
 
@@ -105,4 +121,13 @@ public sealed class DecisionBehaviorSessionContext
     }
 
     public IReadOnlyDictionary<string, int> GetSwipeTransitionCounts() => _swipeTransitionCount;
+
+    public int GetRevisitCount(string productId)
+    {
+        if (string.IsNullOrWhiteSpace(productId))
+            throw new ArgumentException("productId is required.", nameof(productId));
+        return _revisitCountByProduct.TryGetValue(productId, out var count) ? count : 0;
+    }
+
+    public IReadOnlyDictionary<string, int> GetRevisitCountsByProduct() => _revisitCountByProduct;
 }
