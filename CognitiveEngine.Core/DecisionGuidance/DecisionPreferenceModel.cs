@@ -8,8 +8,10 @@ namespace CognitiveEngine.Core.DecisionGuidance;
 /// </summary>
 public static class DecisionPreferenceModel
 {
+    private const int WeakSignalMinimumEvidence = 3;
     private const double MinSingleLeanScore = 0.35;
     private const double MinCompareWinnerScore = 0.30;
+    private const double AmbiguousCompareDelta = 0.06;
     private const double MinCompareDelta = 0.12;
 
     public static DecisionPreferenceResult EvaluateSingle(DecisionBehaviorSessionContext session, string productId)
@@ -18,11 +20,19 @@ public static class DecisionPreferenceModel
         if (string.IsNullOrWhiteSpace(productId))
             throw new ArgumentException("productId is required.", nameof(productId));
 
+        if (session.IsWeakBehaviorSignal(WeakSignalMinimumEvidence))
+            return DecisionPreferenceResult.NoClearLean(0.0, "single_rule_v1:weak_signal");
+
         var score = ComputeProductScore(session, productId);
         if (score < MinSingleLeanScore)
             return DecisionPreferenceResult.NoClearLean(score, "single_rule_v1:insufficient_single_score");
 
-        return DecisionPreferenceResult.LeanSingle(productId, score, "single_rule_v1:weighted(selection,dwell,revisit,focus)");
+        var repeatedFocusBoost = session.IsRepeatedFocus(productId) ? 0.08 : 0.0;
+        var confidence = Clamp01(score + repeatedFocusBoost);
+        return DecisionPreferenceResult.LeanSingle(
+            productId,
+            confidence,
+            "single_rule_v1:weighted(selection,dwell,revisit,focus)+repeated_focus_boost");
     }
 
     public static DecisionPreferenceResult EvaluateComparison(
@@ -44,7 +54,11 @@ public static class DecisionPreferenceModel
         var delta = Math.Abs(scoreA - scoreB);
 
         var pairStrength = session.GetCompareEvidenceNormalizedStrength(productIdA, productIdB);
-        var confidence = Clamp01(0.65 * delta + 0.35 * pairStrength);
+        var evidencePenalty = session.IsWeakBehaviorSignal(WeakSignalMinimumEvidence) ? 0.20 : 0.0;
+        var confidence = Clamp01(0.65 * delta + 0.35 * pairStrength - evidencePenalty);
+
+        if (delta < AmbiguousCompareDelta)
+            return DecisionPreferenceResult.NoClearLean(confidence, "compare_rule_v1:ambiguous_tie");
 
         if (winner < MinCompareWinnerScore || delta < MinCompareDelta)
             return DecisionPreferenceResult.NoClearLean(confidence, "compare_rule_v1:insufficient_separation");
