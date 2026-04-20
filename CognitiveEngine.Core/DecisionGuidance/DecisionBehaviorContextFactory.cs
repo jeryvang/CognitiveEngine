@@ -39,7 +39,8 @@ public static class DecisionBehaviorContextFactory
             {
                 Leaning = preference.Leaning,
                 IsAmbiguous = preference.IsAmbiguous,
-                Confidence = Round4(preference.Confidence)
+                Confidence = Round4(preference.Confidence),
+                Basis = preference.Basis
             },
             WhyThisMattersNow = rationale
         };

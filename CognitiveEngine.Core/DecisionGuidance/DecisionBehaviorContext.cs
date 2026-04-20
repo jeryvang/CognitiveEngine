@@ -56,6 +56,9 @@ public sealed class PreferenceIndication
 
     [JsonProperty("confidence", Order = 3, Required = Required.Always)]
     public double Confidence { get; set; }
+
+    [JsonProperty("basis", Order = 4, Required = Required.Always)]
+    public string Basis { get; set; } = "";
 }
 
 public enum PreferenceLean
