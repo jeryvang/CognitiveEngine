@@ -33,35 +33,53 @@ public static class DecisionBehaviorContextFactory
 
     private static BehaviorSignalUsage BuildSignalUsage(
         DecisionBehaviorSessionContext session,
-        in ResolvedDecisionTrigger trigger)
+        in ResolvedDecisionTrigger trigger) =>
+        trigger.Kind == DecisionTriggerKind.Compare
+            ? BuildCompareSignalUsage(session, in trigger)
+            : BuildSingleSignalUsage(session, trigger.ProductIdLow);
+
+    private static BehaviorSignalUsage BuildSingleSignalUsage(
+        DecisionBehaviorSessionContext session,
+        string productId)
     {
-        var selectionStrength = AverageOrZero(
-            session.GetSelectionEvidenceNormalizedStrength(trigger.ProductIdLow),
-            trigger.Kind == DecisionTriggerKind.Compare ? session.GetSelectionEvidenceNormalizedStrength(trigger.ProductIdHigh) : (double?)null);
-
-        var dwellStrength = AverageOrZero(
-            session.GetDwellEvidenceNormalizedStrength(trigger.ProductIdLow),
-            trigger.Kind == DecisionTriggerKind.Compare ? session.GetDwellEvidenceNormalizedStrength(trigger.ProductIdHigh) : (double?)null);
-
-        var revisitStrength = AverageOrZero(
-            session.GetRevisitEvidenceNormalizedStrength(trigger.ProductIdLow),
-            trigger.Kind == DecisionTriggerKind.Compare ? session.GetRevisitEvidenceNormalizedStrength(trigger.ProductIdHigh) : (double?)null);
-
-        var compareStrength = trigger.Kind == DecisionTriggerKind.Compare
-            ? session.GetCompareEvidenceNormalizedStrength(trigger.ProductIdLow, trigger.ProductIdHigh)
-            : 0.0;
-
-        var swipeTransitionCounts = session.GetSwipeTransitionCounts();
-        var maxSwipe = swipeTransitionCounts.Count == 0 ? 0 : swipeTransitionCounts.Values.Max();
-        var swipeStrength = maxSwipe <= 0 ? 0.0 : (double)session.SwipeCount / maxSwipe;
-
+        var selectionStrength = session.GetSelectionEvidenceNormalizedStrength(productId);
+        var dwellStrength = session.GetDwellEvidenceNormalizedStrength(productId);
+        var revisitStrength = session.GetRevisitEvidenceNormalizedStrength(productId);
+        var focusStrength = GetFocusNormalizedStrength(session, productId);
         var normalizedSignalStrength = Clamp01(
             0.25 * selectionStrength +
             0.25 * dwellStrength +
             0.20 * revisitStrength +
-            0.20 * compareStrength +
-            0.10 * Clamp01(swipeStrength));
+            0.30 * focusStrength);
+        return BuildSignalUsageOutput(session, normalizedSignalStrength);
+    }
 
+    private static BehaviorSignalUsage BuildCompareSignalUsage(
+        DecisionBehaviorSessionContext session,
+        in ResolvedDecisionTrigger trigger)
+    {
+        var selectionStrength = AverageOrZero(
+            session.GetSelectionEvidenceNormalizedStrength(trigger.ProductIdLow),
+            session.GetSelectionEvidenceNormalizedStrength(trigger.ProductIdHigh));
+        var dwellStrength = AverageOrZero(
+            session.GetDwellEvidenceNormalizedStrength(trigger.ProductIdLow),
+            session.GetDwellEvidenceNormalizedStrength(trigger.ProductIdHigh));
+        var revisitStrength = AverageOrZero(
+            session.GetRevisitEvidenceNormalizedStrength(trigger.ProductIdLow),
+            session.GetRevisitEvidenceNormalizedStrength(trigger.ProductIdHigh));
+        var compareStrength = session.GetCompareEvidenceNormalizedStrength(trigger.ProductIdLow, trigger.ProductIdHigh);
+        var normalizedSignalStrength = Clamp01(
+            0.25 * selectionStrength +
+            0.25 * dwellStrength +
+            0.20 * revisitStrength +
+            0.30 * compareStrength);
+        return BuildSignalUsageOutput(session, normalizedSignalStrength);
+    }
+
+    private static BehaviorSignalUsage BuildSignalUsageOutput(
+        DecisionBehaviorSessionContext session,
+        double normalizedSignalStrength)
+    {
         return new BehaviorSignalUsage
         {
             SelectionCount = session.SelectionCount,
@@ -71,6 +89,15 @@ public static class DecisionBehaviorContextFactory
             RevisitCount = session.RevisitCount,
             NormalizedSignalStrength = normalizedSignalStrength
         };
+    }
+
+    private static double GetFocusNormalizedStrength(DecisionBehaviorSessionContext session, string productId)
+    {
+        var focusCounts = session.GetFocusCountsByProduct();
+        var maxFocus = focusCounts.Count == 0 ? 0 : focusCounts.Values.Max();
+        if (maxFocus <= 0)
+            return 0.0;
+        return (double)session.GetFocusCount(productId) / maxFocus;
     }
 
     private static DecisionPreferenceResult ResolvePreference(
