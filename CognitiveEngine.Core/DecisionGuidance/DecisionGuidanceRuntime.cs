@@ -114,7 +114,10 @@ public sealed class DecisionGuidanceRuntime
             _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.CompareInvoked, _session.Presentation.LogicalNowMs));
         }
         if (!string.IsNullOrWhiteSpace(frame.DwellProductIfThreshold))
+        {
+            _session.NotifyDwellThresholdMet(frame.DwellProductIfThreshold);
             _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.DwellThresholdMet, _session.Presentation.LogicalNowMs, frame.DwellProductIfThreshold));
+        }
 
         var trigger = _session.Resolver.AdvanceFrame(in frame);
         if (trigger == null)

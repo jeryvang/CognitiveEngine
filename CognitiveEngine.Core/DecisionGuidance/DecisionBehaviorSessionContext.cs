@@ -18,6 +18,8 @@ public sealed class DecisionBehaviorSessionContext
         new(StringComparer.Ordinal);
     private readonly SortedDictionary<string, int> _comparePairCount =
         new(StringComparer.Ordinal);
+    private readonly SortedDictionary<string, int> _dwellCountByProduct =
+        new(StringComparer.Ordinal);
     private readonly HashSet<string> _visitedProducts = new(StringComparer.Ordinal);
 
     public int SessionGeneration { get; private set; } = 1;
@@ -40,6 +42,8 @@ public sealed class DecisionBehaviorSessionContext
 
     public int CompareCount { get; private set; }
 
+    public int DwellCount { get; private set; }
+
     public bool IsCompareActive { get; private set; }
 
     public string? LastCompareProductIdA { get; private set; }
@@ -55,7 +59,7 @@ public sealed class DecisionBehaviorSessionContext
     public long? LastSelectedLogicalMs { get; private set; }
 
     public bool HasAnyBehaviorSignals =>
-        FocusSwitchCount > 0 || SelectionCount > 0 || SwipeCount > 0 || RevisitCount > 0 || CompareCount > 0;
+        FocusSwitchCount > 0 || SelectionCount > 0 || SwipeCount > 0 || RevisitCount > 0 || CompareCount > 0 || DwellCount > 0;
 
     public void ResetForNewSession()
     {
@@ -76,6 +80,7 @@ public sealed class DecisionBehaviorSessionContext
         SwipeCount = 0;
         RevisitCount = 0;
         CompareCount = 0;
+        DwellCount = 0;
         IsCompareActive = false;
         LastCompareProductIdA = null;
         LastCompareProductIdB = null;
@@ -87,6 +92,7 @@ public sealed class DecisionBehaviorSessionContext
         _swipeTransitionCount.Clear();
         _revisitCountByProduct.Clear();
         _comparePairCount.Clear();
+        _dwellCountByProduct.Clear();
         _visitedProducts.Clear();
     }
 
@@ -163,6 +169,15 @@ public sealed class DecisionBehaviorSessionContext
         LastCompareExitedLogicalMs = LogicalNowMs;
     }
 
+    public void RecordDwellThresholdMet(string productId)
+    {
+        if (string.IsNullOrWhiteSpace(productId))
+            throw new ArgumentException("productId is required.", nameof(productId));
+        DwellCount++;
+        _dwellCountByProduct.TryGetValue(productId, out var prior);
+        _dwellCountByProduct[productId] = prior + 1;
+    }
+
     public int GetSelectionCount(string productId)
     {
         if (string.IsNullOrWhiteSpace(productId))
@@ -188,6 +203,32 @@ public sealed class DecisionBehaviorSessionContext
 
         return (double)GetSelectionCount(productId) / max;
     }
+
+    public int GetDwellEvidenceTotal() => _dwellCountByProduct.Values.Sum();
+
+    public int GetDwellEvidenceMaxPerProduct() =>
+        _dwellCountByProduct.Count == 0 ? 0 : _dwellCountByProduct.Values.Max();
+
+    public double GetDwellEvidenceNormalizedStrength(string productId)
+    {
+        if (string.IsNullOrWhiteSpace(productId))
+            throw new ArgumentException("productId is required.", nameof(productId));
+
+        var max = GetDwellEvidenceMaxPerProduct();
+        if (max <= 0)
+            return 0.0;
+
+        return (double)GetDwellCount(productId) / max;
+    }
+
+    public int GetDwellCount(string productId)
+    {
+        if (string.IsNullOrWhiteSpace(productId))
+            throw new ArgumentException("productId is required.", nameof(productId));
+        return _dwellCountByProduct.TryGetValue(productId, out var count) ? count : 0;
+    }
+
+    public IReadOnlyDictionary<string, int> GetDwellCountsByProduct() => _dwellCountByProduct;
 
     public int GetSwipeTransitionCount(string fromProductId, string toProductId)
     {

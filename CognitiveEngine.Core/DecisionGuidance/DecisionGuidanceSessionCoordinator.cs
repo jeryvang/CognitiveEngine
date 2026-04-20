@@ -71,6 +71,8 @@ public sealed class DecisionGuidanceSessionCoordinator
 
     public void NotifyCompareExited() => _behaviorSession.RecordCompareExited();
 
+    public void NotifyDwellThresholdMet(string productId) => _behaviorSession.RecordDwellThresholdMet(productId);
+
     /// <summary>
     /// Call when the user focuses a different product. Cancels an in-flight primary pipeline (pending timers),
     /// clears sustained-stay tracking, advances resolver revisit/MRU state, and clears decision suppression
