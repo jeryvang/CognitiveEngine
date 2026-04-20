@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace CognitiveEngine.Core.DecisionGuidance;
 
@@ -8,6 +9,9 @@ namespace CognitiveEngine.Core.DecisionGuidance;
 /// </summary>
 public sealed class DecisionBehaviorSessionContext
 {
+    private readonly SortedDictionary<string, int> _selectionCountByProduct =
+        new(StringComparer.Ordinal);
+
     public long LogicalNowMs { get; private set; }
 
     public string? CurrentProductId { get; private set; }
@@ -18,6 +22,10 @@ public sealed class DecisionBehaviorSessionContext
 
     public int SelectionCount { get; private set; }
 
+    public string? LastSelectedProductId { get; private set; }
+
+    public long? LastSelectedLogicalMs { get; private set; }
+
     public void Reset()
     {
         LogicalNowMs = 0;
@@ -25,6 +33,9 @@ public sealed class DecisionBehaviorSessionContext
         PreviousProductId = null;
         FocusSwitchCount = 0;
         SelectionCount = 0;
+        LastSelectedProductId = null;
+        LastSelectedLogicalMs = null;
+        _selectionCountByProduct.Clear();
     }
 
     public void SetLogicalNow(long logicalNowMs)
@@ -52,6 +63,20 @@ public sealed class DecisionBehaviorSessionContext
     {
         if (string.IsNullOrWhiteSpace(productId))
             throw new ArgumentException("productId is required.", nameof(productId));
+
+        LastSelectedProductId = productId;
+        LastSelectedLogicalMs = LogicalNowMs;
         SelectionCount++;
+        _selectionCountByProduct.TryGetValue(productId, out var prior);
+        _selectionCountByProduct[productId] = prior + 1;
     }
+
+    public int GetSelectionCount(string productId)
+    {
+        if (string.IsNullOrWhiteSpace(productId))
+            throw new ArgumentException("productId is required.", nameof(productId));
+        return _selectionCountByProduct.TryGetValue(productId, out var count) ? count : 0;
+    }
+
+    public IReadOnlyDictionary<string, int> GetSelectionCountsByProduct() => _selectionCountByProduct;
 }

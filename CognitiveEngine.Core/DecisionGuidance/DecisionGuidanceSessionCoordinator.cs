@@ -98,10 +98,11 @@ public sealed class DecisionGuidanceSessionCoordinator
         if (string.IsNullOrWhiteSpace(productId))
             throw new ArgumentException("productId is required.", nameof(productId));
 
+        _behaviorSession.RecordSelect(productId);
+
         if (_mode == DecisionGuidanceMode.Test)
             return;
 
-        _behaviorSession.RecordSelect(productId);
         _confirmedProductId = productId;
         _presentation.CancelPrimaryPipeline();
         _sustainedStayStartMs = null;
