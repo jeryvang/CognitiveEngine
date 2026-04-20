@@ -125,12 +125,9 @@ public sealed class DecisionGuidanceRuntime
 
         _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.TriggerResolved, _session.Presentation.LogicalNowMs, trigger.Value.ProductIdLow, ResolvedDecisionTrigger.Signature(trigger.Value)));
 
-        var build = DecisionOutputBuilder.Build(trigger.Value, _content(trigger.Value));
-        var behaviorContext = DecisionBehaviorContextFactory.Create(_session.BehaviorSession, trigger.Value);
-        if (build.Shape == DecisionOutputKind.SingleProduct && build.Single != null)
-            build.Single.BehaviorContext = behaviorContext;
-        else if (build.Shape == DecisionOutputKind.Comparison && build.Comparison != null)
-            build.Comparison.BehaviorContext = behaviorContext;
+        var resolvedTrigger = trigger.Value;
+        var build = DecisionOutputBuilder.Build(resolvedTrigger, _content(resolvedTrigger));
+        TryAttachBehaviorContext(build, in resolvedTrigger);
 
         if (!_session.TryEnqueuePrimaryOutput(trigger.Value, build))
         {
@@ -152,4 +149,20 @@ public sealed class DecisionGuidanceRuntime
 
     public ResolvedDecisionTrigger? ProcessTriggerInput(in DecisionTriggerInput input) =>
         ProcessTriggerFrame(DecisionTriggerFrame.FromInput(in input));
+
+    private void TryAttachBehaviorContext(DecisionOutputBuildResult build, in ResolvedDecisionTrigger trigger)
+    {
+        try
+        {
+            var behaviorContext = DecisionBehaviorContextFactory.Create(_session.BehaviorSession, in trigger);
+            if (build.Shape == DecisionOutputKind.SingleProduct && build.Single != null)
+                build.Single.BehaviorContext = behaviorContext;
+            else if (build.Shape == DecisionOutputKind.Comparison && build.Comparison != null)
+                build.Comparison.BehaviorContext = behaviorContext;
+        }
+        catch (Exception)
+        {
+            // P7 context is additive; never block core P6 output flow.
+        }
+    }
 }
