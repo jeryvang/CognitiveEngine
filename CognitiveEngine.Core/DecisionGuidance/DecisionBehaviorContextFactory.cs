@@ -68,11 +68,13 @@ public static class DecisionBehaviorContextFactory
             session.GetRevisitEvidenceNormalizedStrength(trigger.ProductIdLow),
             session.GetRevisitEvidenceNormalizedStrength(trigger.ProductIdHigh));
         var compareStrength = session.GetCompareEvidenceNormalizedStrength(trigger.ProductIdLow, trigger.ProductIdHigh);
+        var pairRepeatBoost = GetComparePairRepeatBoost(session, trigger.ProductIdLow, trigger.ProductIdHigh);
         var normalizedSignalStrength = Clamp01(
             0.25 * selectionStrength +
             0.25 * dwellStrength +
             0.20 * revisitStrength +
-            0.30 * compareStrength);
+            0.25 * compareStrength +
+            0.05 * pairRepeatBoost);
         return BuildSignalUsageOutput(session, normalizedSignalStrength);
     }
 
@@ -98,6 +100,17 @@ public static class DecisionBehaviorContextFactory
         if (maxFocus <= 0)
             return 0.0;
         return (double)session.GetFocusCount(productId) / maxFocus;
+    }
+
+    private static double GetComparePairRepeatBoost(
+        DecisionBehaviorSessionContext session,
+        string productIdA,
+        string productIdB)
+    {
+        var pairCount = session.GetComparePairCount(productIdA, productIdB);
+        if (pairCount <= 1)
+            return 0.0;
+        return Clamp01((pairCount - 1) / 3.0);
     }
 
     private static DecisionPreferenceResult ResolvePreference(
