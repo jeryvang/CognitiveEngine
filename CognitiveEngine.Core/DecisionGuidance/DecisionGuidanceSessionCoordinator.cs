@@ -55,7 +55,7 @@ public sealed class DecisionGuidanceSessionCoordinator
     {
         _resolver.Reset();
         _presentation.Reset();
-        _behaviorSession.Reset();
+        _behaviorSession.ResetForNewSession();
         _lastFocusedProductId = null;
         _confirmedProductId = null;
         _sustainedStayStartMs = null;

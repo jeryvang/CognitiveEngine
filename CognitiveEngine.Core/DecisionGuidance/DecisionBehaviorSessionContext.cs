@@ -19,6 +19,10 @@ public sealed class DecisionBehaviorSessionContext
         new(StringComparer.Ordinal);
     private readonly HashSet<string> _visitedProducts = new(StringComparer.Ordinal);
 
+    public int SessionGeneration { get; private set; } = 1;
+
+    public long? LastSessionEndedLogicalMs { get; private set; }
+
     public long LogicalNowMs { get; private set; }
 
     public string? CurrentProductId { get; private set; }
@@ -49,7 +53,19 @@ public sealed class DecisionBehaviorSessionContext
 
     public long? LastSelectedLogicalMs { get; private set; }
 
-    public void Reset()
+    public bool HasAnyBehaviorSignals =>
+        FocusSwitchCount > 0 || SelectionCount > 0 || SwipeCount > 0 || RevisitCount > 0 || CompareCount > 0;
+
+    public void ResetForNewSession()
+    {
+        LastSessionEndedLogicalMs = LogicalNowMs;
+        SessionGeneration++;
+        ClearMutableSessionState();
+    }
+
+    public void Reset() => ResetForNewSession();
+
+    private void ClearMutableSessionState()
     {
         LogicalNowMs = 0;
         CurrentProductId = null;
