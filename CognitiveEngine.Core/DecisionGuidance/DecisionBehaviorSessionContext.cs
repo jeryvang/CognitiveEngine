@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace CognitiveEngine.Core.DecisionGuidance;
 
@@ -170,6 +171,23 @@ public sealed class DecisionBehaviorSessionContext
     }
 
     public IReadOnlyDictionary<string, int> GetSelectionCountsByProduct() => _selectionCountByProduct;
+
+    public int GetSelectionEvidenceTotal() => _selectionCountByProduct.Values.Sum();
+
+    public int GetSelectionEvidenceMaxPerProduct() =>
+        _selectionCountByProduct.Count == 0 ? 0 : _selectionCountByProduct.Values.Max();
+
+    public double GetSelectionEvidenceNormalizedStrength(string productId)
+    {
+        if (string.IsNullOrWhiteSpace(productId))
+            throw new ArgumentException("productId is required.", nameof(productId));
+
+        var max = GetSelectionEvidenceMaxPerProduct();
+        if (max <= 0)
+            return 0.0;
+
+        return (double)GetSelectionCount(productId) / max;
+    }
 
     public int GetSwipeTransitionCount(string fromProductId, string toProductId)
     {
