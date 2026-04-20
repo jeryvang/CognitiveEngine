@@ -1,209 +1,128 @@
-using System;
 using UnityEngine;
-using CognitiveEngine.Core;
+using CognitiveEngine.Core.DecisionGuidance;
 
 namespace CognitiveEngine.Samples
 {
-    public enum CognitiveEngineInputMode
-    {
-        Discrete,
-        Streaming
-    }
-
+    /// <summary>
+    /// Unity sample host for <see cref="DecisionGuidanceRuntime"/> (triggers, primary output timing,
+    /// repeat guard, panel suppression). Map trial JSON <c>interaction_signals[].event_type</c> (compare, dwell, selection)
+    /// to <see cref="NotifyCompareInvoked"/>, <see cref="NotifyDwellThresholdMetForActiveProduct"/> / <see cref="NotifyDwellThresholdMet"/>,
+    /// and <see cref="NotifySelect"/>. Use <see cref="SwitchProduct"/> or <see cref="NotifyProductFocusChanged"/> for focus.
+    /// </summary>
     public class CognitiveEngineDriver : MonoBehaviour
     {
-        [Header("Input mode")]
-        [SerializeField] private CognitiveEngineInputMode inputMode = CognitiveEngineInputMode.Discrete;
+        [Header("Decision guidance")]
+        [SerializeField] private bool logTriggerEmissions;
 
-        [Header("Streaming inputs (used when Input mode = Streaming)")]
-        [SerializeField] private float streamingDwellInput;
-        [SerializeField] private float streamingConfirmInput;
-
-        private CognitiveEngine.Core.CognitiveEngine _engine;
-        private StreamingCognitiveEngine _streamingEngine;
+        private DecisionGuidanceRuntime _runtime;
         private string _currentProductId = "default";
 
-        [Header("Product context (M2, Discrete only)")]
-        [SerializeField] private bool useProductContext = false;
-        [SerializeField] private string productIdForUpdate = "default";
-
-        [Header("Logging")]
-        [SerializeField] private bool logStateChanges = true;
-        [SerializeField] private bool logContextSwitch = true;
-        [SerializeField] private bool logBoundaryViolations = true;
-        [SerializeField] private bool logDeterminismViolations = true;
-        [SerializeField] private bool logAuditEntries = true;
-        [SerializeField] private bool logAuditTickEntries = false;
+        void Awake()
+        {
+            _runtime = new DecisionGuidanceRuntime(null, BuildPlaceholderDecisionContent);
+        }
 
         void Start()
         {
-            if (inputMode == CognitiveEngineInputMode.Discrete)
-            {
-                _engine = new CognitiveEngine.Core.CognitiveEngine();
-                _engine.OnStateUpdated += OnStateChanged;
-                if (logBoundaryViolations)
-                    _engine.OnBoundaryViolation += OnBoundaryViolation;
-                if (logDeterminismViolations)
-                    _engine.OnDeterminismViolation += OnDeterminismViolation;
-                if (logAuditEntries)
-                    _engine.OnAuditEntry += OnAuditEntry;
-            }
-            else
-            {
-                _streamingEngine = new StreamingCognitiveEngine();
-                _streamingEngine.OnStateUpdated += OnStateChanged;
-            }
+            _runtime.NotifyProductFocusChanged(_currentProductId);
         }
 
         void Update()
         {
-            if (inputMode == CognitiveEngineInputMode.Discrete && _engine != null)
-            {
-                try
-                {
-                    if (useProductContext)
-                        _engine.Update(Time.deltaTime, Time.time, productIdForUpdate);
-                    else
-                        _engine.Update(Time.deltaTime, Time.time);
-                }
-                catch (InvalidOperationException e)
-                {
-                    if (logBoundaryViolations)
-                        Debug.LogWarning($"[CognitiveEngine] Boundary: {e.Message}");
-                }
-            }
-            else if (inputMode == CognitiveEngineInputMode.Streaming && _streamingEngine != null)
-            {
-                float dwell = Application.isEditor && streamingDwellInput == 0f && streamingConfirmInput == 0f
-                    ? 0f
-                    : streamingDwellInput;
-                float confirm = Application.isEditor && streamingDwellInput == 0f && streamingConfirmInput == 0f
-                    ? (Input.GetMouseButton(0) ? 1f : 0f)
-                    : streamingConfirmInput;
-                _streamingEngine.Update(Time.deltaTime, dwell, confirm);
-            }
+            if (_runtime == null) return;
+            int ms = Mathf.Max(0, Mathf.RoundToInt(Time.deltaTime * 1000f));
+            _runtime.Tick(ms);
         }
 
+        /// <summary>Sets the active product for dwell helpers and notifies focus (MRU / revisit).</summary>
         public void SwitchProduct(string newProductId)
         {
-            if (inputMode != CognitiveEngineInputMode.Discrete || _engine == null || string.IsNullOrEmpty(newProductId)) return;
-            _engine.HandleProductContextSwitch(newProductId);
-            _currentProductId = _engine.ActiveProductId;
-            productIdForUpdate = _currentProductId;
-            if (logContextSwitch)
-                Debug.Log($"[CognitiveEngine] Switched to product: {_currentProductId}");
+            if (string.IsNullOrEmpty(newProductId)) return;
+            _currentProductId = newProductId;
+            _runtime.NotifyProductFocusChanged(newProductId);
         }
 
-        public void OnProductFocused()
+        public DecisionGuidanceRuntime GetDecisionGuidanceRuntime() => _runtime;
+
+        public string ActiveProductId => _currentProductId;
+
+        public DecisionOutputBuildResult? GetCurrentPrimaryOutput() =>
+            _runtime.Session.Presentation.CurrentPrimaryOutput;
+
+        public float GetPrimaryPresentationAlpha() =>
+            _runtime.Session.Presentation.GetPrimaryPresentationAlpha();
+
+        public void NotifyCompareInvoked() => EmitTrigger(DecisionTriggerInput.CompareInvoked());
+
+        /// <summary>Measurement only: call when compare UI opens.</summary>
+        public void NotifyCompareEntered() => _runtime.NotifyCompareEntered();
+
+        /// <summary>Measurement only: call when compare UI closes.</summary>
+        public void NotifyCompareExited() => _runtime.NotifyCompareExited();
+
+        public void NotifyDwellThresholdMetForActiveProduct()
         {
-            Inject(new InputSignal(SignalType.ProductFocus, 1.0f, Time.time));
+            if (string.IsNullOrEmpty(_currentProductId)) return;
+            EmitTrigger(DecisionTriggerInput.DwellThresholdMet(_currentProductId));
         }
 
-        public void OnUserDwelling(float strength)
+        public void NotifyDwellThresholdMet(string productId)
         {
-            Inject(new InputSignal(SignalType.DwellTime, strength, Time.time));
+            if (string.IsNullOrEmpty(productId)) return;
+            EmitTrigger(DecisionTriggerInput.DwellThresholdMet(productId));
         }
 
-        public void OnSwipe(float velocity)
+        public void NotifyProductFocusChanged(string productId)
         {
-            Inject(new InputSignal(SignalType.SwipeVelocity, velocity, Time.time));
+            if (string.IsNullOrEmpty(productId)) return;
+            _currentProductId = productId;
+            _runtime.NotifyProductFocusChanged(productId);
         }
 
-        public void OnComparisonAction()
+        public void NotifySelect(string productId)
         {
-            Inject(new InputSignal(SignalType.ComparisonAction, 1.0f, Time.time));
+            if (string.IsNullOrEmpty(productId)) return;
+            _runtime.NotifySelect(productId);
         }
 
-        public void OnConfirmIntent()
+        public void SetDetailPanelOpen(bool isOpen) => _runtime.SetPanelOpen(isOpen);
+
+        public bool TryConsumeExpandDetailTap() => _runtime.TryConsumeExpandTap();
+
+        public void ResetGuidanceSession() => _runtime.ResetSession();
+
+        private void EmitTrigger(DecisionTriggerInput input)
         {
-            Inject(new InputSignal(SignalType.ConfirmIntent, 1.0f, Time.time));
+            var emitted = _runtime.ProcessTriggerInput(input);
+            if (logTriggerEmissions && emitted != null)
+                Debug.Log($"[DecisionGuidance] Emitted {emitted.Value.Kind} {ResolvedDecisionTrigger.Signature(emitted.Value)}");
         }
 
-        public void OnContextChanged()
+        private static DecisionOutputContent BuildPlaceholderDecisionContent(ResolvedDecisionTrigger trigger)
         {
-            Inject(new InputSignal(SignalType.ContextChange, 1.0f, Time.time));
-        }
-
-        public void SetStreamingInputs(float dwell, float confirm)
-        {
-            streamingDwellInput = dwell;
-            streamingConfirmInput = confirm;
-        }
-
-        private void Inject(InputSignal signal)
-        {
-            if (inputMode != CognitiveEngineInputMode.Discrete || _engine == null) return;
-            try
+            switch (trigger.Kind)
             {
-                if (useProductContext)
-                    _engine.InjectSignal(signal, _currentProductId);
-                else
-                    _engine.InjectSignal(signal);
-            }
-            catch (InvalidOperationException e)
-            {
-                if (logBoundaryViolations)
-                    Debug.LogWarning($"[CognitiveEngine] Boundary: {e.Message}");
-            }
-        }
-
-        private void OnStateChanged(CognitiveState state)
-        {
-            if (logStateChanges)
-                Debug.Log($"[CognitiveEngine] {state.State} | {state.ReasoningTag} | {state.Confidence:F2}");
-        }
-
-        private void OnBoundaryViolation(BoundaryViolationRecord r)
-        {
-            Debug.Log($"[CognitiveEngine] Boundary {r.Kind} expected={r.ExpectedProductId} actual={r.ActualProductId}");
-        }
-
-        private void OnDeterminismViolation(DeterminismViolationRecord r)
-        {
-            Debug.Log($"[CognitiveEngine] Determinism {r.Kind} tick={r.TickIndex} {r.FromState}→{r.ToState} rule={r.RuleName}");
-        }
-
-        private void OnAuditEntry(AuditEntry entry)
-        {
-            if (entry.Kind == AuditEntryKind.Tick && !logAuditTickEntries) return;
-            switch (entry.Kind)
-            {
-                case AuditEntryKind.ContextSwitch:
-                    Debug.Log($"[CognitiveEngine] Audit ContextSwitch productId={entry.ProductId} from={entry.FromProductId} to={entry.ToProductId}");
-                    break;
-                case AuditEntryKind.SessionReset:
-                    Debug.Log($"[CognitiveEngine] Audit SessionReset productId={entry.ProductId}");
-                    break;
-                case AuditEntryKind.Tick:
-                    Debug.Log($"[CognitiveEngine] Audit Tick productId={entry.ProductId} tick={entry.TickIndex} t={entry.Timestamp:F2} rule={entry.RuleName} state={entry.State}");
-                    break;
+                case DecisionTriggerKind.Compare:
+                    return new DecisionOutputContent
+                    {
+                        KeyDifference =
+                            $"Key difference between {trigger.ProductIdLow} and {trigger.ProductIdHigh} (replace with catalog copy).",
+                        WhichToChooseIf =
+                            "Which to choose if… (replace with catalog copy)."
+                    };
+                default:
+                    return new DecisionOutputContent
+                    {
+                        WhatThisGivesYou = $"What this gives you for {trigger.ProductIdLow} (replace with catalog copy).",
+                        WhatYouTradeOff = "What you trade off (replace with catalog copy)."
+                    };
             }
         }
 
         void OnDestroy()
         {
-            if (_engine != null)
-            {
-                _engine.OnStateUpdated -= OnStateChanged;
-                _engine.OnBoundaryViolation -= OnBoundaryViolation;
-                _engine.OnDeterminismViolation -= OnDeterminismViolation;
-                _engine.OnAuditEntry -= OnAuditEntry;
-                if (!useProductContext)
-                    _engine.ResetSession();
-            }
-            if (_streamingEngine != null)
-            {
-                _streamingEngine.OnStateUpdated -= OnStateChanged;
-                _streamingEngine.Reset();
-            }
+            if (_runtime != null)
+                _runtime.ResetSession();
         }
-
-        public CognitiveEngine.Core.CognitiveEngine GetEngine() => _engine;
-        public StreamingCognitiveEngine GetStreamingEngine() => _streamingEngine;
-        public CognitiveEngineInputMode InputMode => inputMode;
-        public CognitiveState CurrentState => inputMode == CognitiveEngineInputMode.Streaming && _streamingEngine != null
-            ? _streamingEngine.Current
-            : default;
-        public string ActiveProductId => _engine != null ? _engine.ActiveProductId : "";
     }
 }

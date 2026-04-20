@@ -11,6 +11,7 @@ namespace CognitiveEngine.Core.DecisionGuidance;
 public sealed class DecisionGuidancePresentationController
 {
     private readonly DecisionGuidanceConfig _cfg;
+    private readonly DecisionGuidanceMode _mode;
 
     private long _nowMs;
 
@@ -38,6 +39,7 @@ public sealed class DecisionGuidancePresentationController
     {
         _cfg = config ?? DecisionGuidanceConfig.CreateDefault();
         _cfg.ValidateOrThrow();
+        _mode = _cfg.Mode;
     }
 
     public long LogicalNowMs => _nowMs;
@@ -104,6 +106,9 @@ public sealed class DecisionGuidancePresentationController
     /// <summary>Host calls when optional detail panel opens or closes.</summary>
     public void SetPanelOpen(bool isOpen)
     {
+        if (_mode == DecisionGuidanceMode.Test)
+            return;
+
         if (isOpen)
         {
             if (!_panelOpen)

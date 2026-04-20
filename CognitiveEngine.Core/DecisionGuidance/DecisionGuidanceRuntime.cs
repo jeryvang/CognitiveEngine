@@ -12,25 +12,61 @@ public sealed class DecisionGuidanceRuntime
 {
     private readonly DecisionGuidanceSessionCoordinator _session;
     private readonly Func<ResolvedDecisionTrigger, DecisionOutputContent> _content;
+    private readonly Action<DecisionGuidanceEvent>? _onEvent;
 
     private long _lastExpandLogicalMs = -1;
+    private DecisionPresentationPhase _lastPhase;
 
     public DecisionGuidanceRuntime(
         DecisionGuidanceConfig? config = null,
-        Func<ResolvedDecisionTrigger, DecisionOutputContent>? content = null)
+        Func<ResolvedDecisionTrigger, DecisionOutputContent>? content = null,
+        Action<DecisionGuidanceEvent>? onEvent = null)
     {
         var cfg = config ?? DecisionGuidanceConfig.CreateDefault();
         _session = new DecisionGuidanceSessionCoordinator(cfg);
         _content = content ?? (_ => new DecisionOutputContent());
+        _onEvent = onEvent;
+        _lastPhase = _session.Presentation.Phase;
     }
 
     public DecisionGuidanceSessionCoordinator Session => _session;
 
-    public void Tick(long deltaMs) => _session.AdvanceMs(deltaMs);
+    public void Tick(long deltaMs)
+    {
+        _session.AdvanceMs(deltaMs);
 
-    public void NotifyProductFocusChanged(string productId) => _session.NotifyProductFocusChanged(productId);
+        var phase = _session.Presentation.Phase;
+        if (_lastPhase != DecisionPresentationPhase.PrimaryVisible &&
+            phase == DecisionPresentationPhase.PrimaryVisible)
+        {
+            _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.OutputBecameVisible, _session.Presentation.LogicalNowMs));
+        }
+        _lastPhase = phase;
+    }
 
-    public void NotifySelect(string productId) => _session.NotifySelect(productId);
+    public void NotifyProductFocusChanged(string productId)
+    {
+        _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.FocusChanged, _session.Presentation.LogicalNowMs, productId));
+        _session.NotifyProductFocusChanged(productId);
+    }
+
+    public void NotifySelect(string productId)
+    {
+        _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.SelectNotified, _session.Presentation.LogicalNowMs, productId));
+        _session.NotifySelect(productId);
+    }
+
+    /// <summary>
+    /// Host-defined compare UI state: call when the user enters compare mode. Used for measurement only.
+    /// </summary>
+    public void NotifyCompareEntered() =>
+        _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.CompareEntered, _session.Presentation.LogicalNowMs));
+
+    /// <summary>
+    /// Host-defined compare UI state: call when the user exits compare mode. Used for measurement only.
+    /// </summary>
+    public void NotifyCompareExited() =>
+        _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.CompareExited, _session.Presentation.LogicalNowMs));
 
     public void SetPanelOpen(bool isOpen) => _session.SetPanelOpen(isOpen);
 
@@ -38,6 +74,7 @@ public sealed class DecisionGuidanceRuntime
     {
         _session.ResetSession();
         _lastExpandLogicalMs = -1;
+        _lastPhase = _session.Presentation.Phase;
     }
 
     /// <summary>
@@ -63,9 +100,18 @@ public sealed class DecisionGuidanceRuntime
         if (_session.Presentation.IsPanelOpen)
             return null;
 
+        if (!string.IsNullOrWhiteSpace(frame.FocusProductIfChanged))
+            _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.FocusChanged, _session.Presentation.LogicalNowMs, frame.FocusProductIfChanged));
+        if (frame.CompareInvoked)
+            _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.CompareInvoked, _session.Presentation.LogicalNowMs));
+        if (!string.IsNullOrWhiteSpace(frame.DwellProductIfThreshold))
+            _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.DwellThresholdMet, _session.Presentation.LogicalNowMs, frame.DwellProductIfThreshold));
+
         var trigger = _session.Resolver.AdvanceFrame(in frame);
         if (trigger == null)
             return null;
+
+        _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.TriggerResolved, _session.Presentation.LogicalNowMs, trigger.Value.ProductIdLow, ResolvedDecisionTrigger.Signature(trigger.Value)));
 
         var build = DecisionOutputBuilder.Build(trigger.Value, _content(trigger.Value));
         if (!_session.TryEnqueuePrimaryOutput(trigger.Value, build))
@@ -82,6 +128,7 @@ public sealed class DecisionGuidanceRuntime
             return null;
         }
 
+        _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.OutputEnqueued, _session.Presentation.LogicalNowMs, trigger.Value.ProductIdLow, ResolvedDecisionTrigger.Signature(trigger.Value)));
         return trigger;
     }
 

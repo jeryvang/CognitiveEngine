@@ -8,6 +8,7 @@ public class DecisionGuidancePresentationControllerTests
     private static DecisionGuidanceConfig FastConfig()
     {
         var c = DecisionGuidanceConfig.CreateDefault();
+        c.Mode = DecisionGuidanceMode.Full;
         c.AppearanceDelayMs = 100;
         c.PrimaryVisibleMs = 200;
         c.SoftFadeOrCollapseMs = 50;

@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using Newtonsoft.Json;
 
 namespace CognitiveEngine.Core.DecisionGuidance;
@@ -26,34 +27,45 @@ public sealed class DecisionGuidanceConfig
     [JsonProperty("schema_version", Order = 1, Required = Required.Always)]
     public string SchemaVersion { get; set; } = DecisionGuidanceSchema.ConfigVersion;
 
+    /// <summary>
+    /// P6 behavior mode. Default is <see cref="DecisionGuidanceMode.Test"/> for clean validation.
+    /// Stored as a camelCase string when serialized (shared export settings).
+    ///
+    /// Backward compatibility:
+    /// - This field is optional and omitted when default to preserve existing golden JSON shapes.
+    /// </summary>
+    [JsonProperty("mode", Order = 2, DefaultValueHandling = DefaultValueHandling.Ignore)]
+    [DefaultValue(DecisionGuidanceMode.Test)]
+    public DecisionGuidanceMode Mode { get; set; } = DecisionGuidanceMode.Test;
+
     /// <summary>Delay after trigger conditions are met before showing primary output (~1.0–1.5s).</summary>
-    [JsonProperty("appearance_delay_ms", Order = 2, Required = Required.Always)]
+    [JsonProperty("appearance_delay_ms", Order = 3, Required = Required.Always)]
     public int AppearanceDelayMs { get; set; } = DefaultAppearanceDelayMs;
 
     /// <summary>How long primary output stays fully visible before soft fade/collapse (~6–8s).</summary>
-    [JsonProperty("primary_visible_ms", Order = 3, Required = Required.Always)]
+    [JsonProperty("primary_visible_ms", Order = 4, Required = Required.Always)]
     public int PrimaryVisibleMs { get; set; } = DefaultPrimaryVisibleMs;
 
     /// <summary>Duration of soft fade or collapse (not an instant hide).</summary>
-    [JsonProperty("soft_fade_or_collapse_ms", Order = 4, Required = Required.Always)]
+    [JsonProperty("soft_fade_or_collapse_ms", Order = 5, Required = Required.Always)]
     public int SoftFadeOrCollapseMs { get; set; } = DefaultSoftFadeOrCollapseMs;
 
     /// <summary>Same trigger type should not fire again inside this window (~30–60s).</summary>
-    [JsonProperty("repeat_guard_ms", Order = 5, Required = Required.Always)]
+    [JsonProperty("repeat_guard_ms", Order = 6, Required = Required.Always)]
     public int RepeatGuardMs { get; set; } = DefaultRepeatGuardMs;
 
     /// <summary>
     /// After output is shown, staying on the same product for this long counts as decision confirmation.
     /// </summary>
-    [JsonProperty("sustained_stay_after_output_ms", Order = 6, Required = Required.Always)]
+    [JsonProperty("sustained_stay_after_output_ms", Order = 7, Required = Required.Always)]
     public int SustainedStayAfterOutputMs { get; set; } = DefaultSustainedStayAfterOutputMs;
 
     /// <summary>Minimum time after optional panel closes before a new output may appear.</summary>
-    [JsonProperty("panel_close_cooldown_ms", Order = 7, Required = Required.Always)]
+    [JsonProperty("panel_close_cooldown_ms", Order = 8, Required = Required.Always)]
     public int PanelCloseCooldownMs { get; set; } = DefaultPanelCloseCooldownMs;
 
     /// <summary>Ignore duplicate expand taps within this window (e.g. 300ms).</summary>
-    [JsonProperty("expand_duplicate_tap_ignore_ms", Order = 8, Required = Required.Always)]
+    [JsonProperty("expand_duplicate_tap_ignore_ms", Order = 9, Required = Required.Always)]
     public int ExpandDuplicateTapIgnoreMs { get; set; } = DefaultExpandDuplicateTapIgnoreMs;
 
     public static DecisionGuidanceConfig CreateDefault() => new();

@@ -11,6 +11,7 @@ namespace CognitiveEngine.Core.DecisionGuidance;
 public sealed class DecisionGuidanceSessionCoordinator
 {
     private readonly DecisionGuidanceConfig _cfg;
+    private readonly DecisionGuidanceMode _mode;
     private readonly DecisionTriggerResolver _resolver = new();
     private readonly DecisionGuidancePresentationController _presentation;
 
@@ -26,6 +27,7 @@ public sealed class DecisionGuidanceSessionCoordinator
     {
         _cfg = config ?? DecisionGuidanceConfig.CreateDefault();
         _cfg.ValidateOrThrow();
+        _mode = _cfg.Mode;
         _presentation = new DecisionGuidancePresentationController(_cfg);
     }
 
@@ -41,6 +43,7 @@ public sealed class DecisionGuidanceSessionCoordinator
 
     /// <summary>True when nudges are suppressed for the current focused product after Select or sustained stay.</summary>
     public bool IsNudgeSuppressedForCurrentFocus =>
+        _mode == DecisionGuidanceMode.Full &&
         _confirmedProductId != null &&
         _lastFocusedProductId != null &&
         string.Equals(_lastFocusedProductId, _confirmedProductId, StringComparison.Ordinal);
@@ -90,6 +93,9 @@ public sealed class DecisionGuidanceSessionCoordinator
         if (string.IsNullOrWhiteSpace(productId))
             throw new ArgumentException("productId is required.", nameof(productId));
 
+        if (_mode == DecisionGuidanceMode.Test)
+            return;
+
         _confirmedProductId = productId;
         _presentation.CancelPrimaryPipeline();
         _sustainedStayStartMs = null;
@@ -137,6 +143,9 @@ public sealed class DecisionGuidanceSessionCoordinator
             (phaseAfter == DecisionPresentationPhase.PrimaryVisible ||
              phaseAfter == DecisionPresentationPhase.PrimaryFading))
         {
+            if (_mode == DecisionGuidanceMode.Test)
+                return;
+
             if (_presentation.LogicalNowMs - _sustainedStayStartMs.Value >= _cfg.SustainedStayAfterOutputMs)
             {
                 _confirmedProductId = _sustainedStayProductId;

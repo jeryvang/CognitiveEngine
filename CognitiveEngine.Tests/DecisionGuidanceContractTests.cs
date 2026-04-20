@@ -20,6 +20,7 @@ public class DecisionGuidanceContractTests
     {
         var c = DecisionGuidanceConfig.CreateDefault();
         Assert.Equal(DecisionGuidanceSchema.ConfigVersion, c.SchemaVersion);
+        Assert.Equal(DecisionGuidanceMode.Test, c.Mode);
         Assert.Equal(1250, c.AppearanceDelayMs);
         Assert.Equal(7000, c.PrimaryVisibleMs);
         Assert.Equal(500, c.SoftFadeOrCollapseMs);

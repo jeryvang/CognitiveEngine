@@ -9,6 +9,7 @@ public class DecisionGuidanceIntegrationTests
     private static DecisionGuidanceConfig FastRuntimeConfig()
     {
         var c = DecisionGuidanceConfig.CreateDefault();
+        c.Mode = DecisionGuidanceMode.Full;
         c.AppearanceDelayMs = 20;
         c.PrimaryVisibleMs = 100;
         c.SoftFadeOrCollapseMs = 30;

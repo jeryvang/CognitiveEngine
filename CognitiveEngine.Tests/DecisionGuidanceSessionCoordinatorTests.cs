@@ -8,6 +8,7 @@ public class DecisionGuidanceSessionCoordinatorTests
     private static DecisionGuidanceConfig SessionConfig()
     {
         var c = DecisionGuidanceConfig.CreateDefault();
+        c.Mode = DecisionGuidanceMode.Full;
         c.AppearanceDelayMs = 10;
         c.PrimaryVisibleMs = 200;
         c.SoftFadeOrCollapseMs = 20;
