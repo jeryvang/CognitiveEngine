@@ -126,6 +126,12 @@ public sealed class DecisionGuidanceRuntime
         _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.TriggerResolved, _session.Presentation.LogicalNowMs, trigger.Value.ProductIdLow, ResolvedDecisionTrigger.Signature(trigger.Value)));
 
         var build = DecisionOutputBuilder.Build(trigger.Value, _content(trigger.Value));
+        var behaviorContext = DecisionBehaviorContextFactory.Create(_session.BehaviorSession, trigger.Value);
+        if (build.Shape == DecisionOutputKind.SingleProduct && build.Single != null)
+            build.Single.BehaviorContext = behaviorContext;
+        else if (build.Shape == DecisionOutputKind.Comparison && build.Comparison != null)
+            build.Comparison.BehaviorContext = behaviorContext;
+
         if (!_session.TryEnqueuePrimaryOutput(trigger.Value, build))
         {
             if (_session.IsNudgeSuppressedForCurrentFocus)
