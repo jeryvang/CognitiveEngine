@@ -39,7 +39,7 @@ public static class DecisionBehaviorContextFactory
             {
                 Leaning = preference.Leaning,
                 IsAmbiguous = preference.IsAmbiguous,
-                Confidence = preference.Confidence
+                Confidence = Round4(preference.Confidence)
             },
             WhyThisMattersNow = rationale
         };
@@ -103,7 +103,7 @@ public static class DecisionBehaviorContextFactory
             SwipeCount = session.SwipeCount,
             CompareCount = session.CompareCount,
             RevisitCount = session.RevisitCount,
-            NormalizedSignalStrength = normalizedSignalStrength
+            NormalizedSignalStrength = Round4(normalizedSignalStrength)
         };
     }
 
@@ -162,4 +162,7 @@ public static class DecisionBehaviorContextFactory
         if (v > 1.0) return 1.0;
         return v;
     }
+
+    private static double Round4(double v) =>
+        Math.Round(v, 4, MidpointRounding.AwayFromZero);
 }
