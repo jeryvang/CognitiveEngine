@@ -2,7 +2,7 @@ namespace CognitiveEngine.Core.TrialIntelligence;
 
 public static class Schema
 {
-    public const string CurrentVersion = "1.0.0";
+    public const string CurrentVersion = "1.2.0";
 
     public const string UtcTimestampFormatDescription =
         "ISO 8601 UTC (use DateTime.UtcNow.ToString(\"o\") or equivalent; trailing Z required for Zulu).";

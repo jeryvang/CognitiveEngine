@@ -34,6 +34,9 @@ public sealed class SessionContract
 
     [JsonProperty("struggle_decision_summary", Order = 10, Required = Required.Always)]
     public StruggleDecisionSummary StruggleDecisionSummary { get; set; } = new StruggleDecisionSummary();
+
+    [JsonProperty("derived_metrics", Order = 11, Required = Required.Always)]
+    public SessionDerivedMetrics DerivedMetrics { get; set; } = new SessionDerivedMetrics();
 }
 
 public sealed class InteractionSignal
@@ -200,4 +203,28 @@ public enum JourneyClassification
     Struggling,
     Balanced,
     Decisive
+}
+
+public sealed class SessionDerivedMetrics
+{
+    [JsonProperty("switch_count", Order = 1, Required = Required.Always)]
+    public int SwitchCount { get; set; }
+
+    [JsonProperty("exploration_switch_count", Order = 2, Required = Required.Always)]
+    public int ExplorationSwitchCount { get; set; }
+
+    [JsonProperty("selection_events_count", Order = 3, Required = Required.Always)]
+    public int SelectionEventsCount { get; set; }
+
+    [JsonProperty("total_compare_time_ms", Order = 4, Required = Required.Always)]
+    public long TotalCompareTimeMs { get; set; }
+
+    [JsonProperty("compare_time_basis", Order = 5, Required = Required.Always)]
+    public string CompareTimeBasis { get; set; } = "unspecified";
+
+    [JsonProperty("final_selected_product_id", Order = 6)]
+    public string? FinalSelectedProductId { get; set; }
+
+    [JsonProperty("longest_dwell_product_id", Order = 7)]
+    public string? LongestDwellProductId { get; set; }
 }

@@ -18,6 +18,13 @@ public class SessionPreferenceLeaningExtractorTests
         Assert.Empty(c.PreferenceSignals);
         Assert.Empty(c.LeaningIndicators);
         Assert.Empty(c.InteractionSignals);
+        Assert.NotNull(c.DerivedMetrics);
+        Assert.Equal(0, c.DerivedMetrics.SwitchCount);
+        Assert.Equal(0, c.DerivedMetrics.ExplorationSwitchCount);
+        Assert.Equal(0, c.DerivedMetrics.SelectionEventsCount);
+        Assert.Equal(0, c.DerivedMetrics.TotalCompareTimeMs);
+        Assert.Null(c.DerivedMetrics.FinalSelectedProductId);
+        Assert.Null(c.DerivedMetrics.LongestDwellProductId);
     }
 
     [Fact]
@@ -66,6 +73,12 @@ public class SessionPreferenceLeaningExtractorTests
         Assert.Equal(1, c.LeaningIndicators[0].Rank);
         Assert.Equal(2, c.LeaningIndicators[1].Rank);
         Assert.True(c.LeaningIndicators[0].LeaningScore >= c.LeaningIndicators[1].LeaningScore);
+        Assert.Equal(0, c.DerivedMetrics.SwitchCount);
+        Assert.Equal(2, c.DerivedMetrics.ExplorationSwitchCount);
+        Assert.Equal(1, c.DerivedMetrics.SelectionEventsCount);
+        Assert.Equal(0, c.DerivedMetrics.TotalCompareTimeMs);
+        Assert.Equal("p-a", c.DerivedMetrics.FinalSelectedProductId);
+        Assert.Equal("p-b", c.DerivedMetrics.LongestDwellProductId);
 
         // Leaning confidence is session-level and should be identical across products.
         Assert.Equal(c.LeaningIndicators[0].Confidence, c.LeaningIndicators[1].Confidence);
@@ -119,7 +132,112 @@ public class SessionPreferenceLeaningExtractorTests
         Assert.Contains("\"decision_readiness\":{", j1);
         Assert.Contains("\"confidence_interpretation\":{", j1);
         Assert.Contains("\"struggle_decision_summary\":{", j1);
+        Assert.Contains("\"derived_metrics\":{", j1);
         Assert.Contains("\"basis\":\"leaning_friction_proxy_v1\"", j1);
+    }
+
+    [Fact]
+    public void BuildSessionIntelligence_InferCompareTimeMetrics_UsesCompareWindowProxy()
+    {
+        var signals = new List<InteractionSignal>
+        {
+            new()
+            {
+                SignalId = "11111111111111111111111111111111",
+                OccurredAtUtc = "2025-03-24T12:00:00.0000000Z",
+                EventType = InteractionEventKind.Compare,
+                ProductId = "p-a",
+                ComparisonPartnerProductId = "p-b"
+            },
+            new()
+            {
+                SignalId = "22222222222222222222222222222222",
+                OccurredAtUtc = "2025-03-24T12:00:01.0000000Z",
+                EventType = InteractionEventKind.Dwell,
+                ProductId = "p-a",
+                DurationMs = 1000
+            },
+            new()
+            {
+                SignalId = "33333333333333333333333333333333",
+                OccurredAtUtc = "2025-03-24T12:00:03.0000000Z",
+                EventType = InteractionEventKind.Selection,
+                ProductId = "p-a"
+            }
+        };
+
+        var c = SessionPreferenceLeaningExtractor.BuildSessionIntelligence(
+            "sess-compare-metrics",
+            "2025-03-24T12:00:05.0000000Z",
+            signals);
+
+        Assert.Equal(3000, c.DerivedMetrics.TotalCompareTimeMs);
+        Assert.Equal(0, c.DerivedMetrics.ExplorationSwitchCount);
+        Assert.Equal(0, c.DerivedMetrics.SwitchCount);
+        Assert.Equal(
+            "inferred_compare_window_v1(start=compare,end=selection|confirmIntent|contextChange|session_end)",
+            c.DerivedMetrics.CompareTimeBasis);
+    }
+
+    [Fact]
+    public void BuildSessionIntelligence_SplitsCompareAndExplorationSwitchCounts()
+    {
+        var signals = new List<InteractionSignal>
+        {
+            new()
+            {
+                SignalId = "s1",
+                OccurredAtUtc = "2025-03-24T12:00:00.0000000Z",
+                EventType = InteractionEventKind.Selection,
+                ProductId = "p-a"
+            },
+            new()
+            {
+                SignalId = "s2",
+                OccurredAtUtc = "2025-03-24T12:00:01.0000000Z",
+                EventType = InteractionEventKind.Selection,
+                ProductId = "p-b"
+            },
+            new()
+            {
+                SignalId = "s3",
+                OccurredAtUtc = "2025-03-24T12:00:02.0000000Z",
+                EventType = InteractionEventKind.Compare,
+                ProductId = "p-a",
+                ComparisonPartnerProductId = "p-b"
+            },
+            new()
+            {
+                SignalId = "s4",
+                OccurredAtUtc = "2025-03-24T12:00:03.0000000Z",
+                EventType = InteractionEventKind.Dwell,
+                ProductId = "p-b",
+                DurationMs = 500
+            },
+            new()
+            {
+                SignalId = "s5",
+                OccurredAtUtc = "2025-03-24T12:00:04.0000000Z",
+                EventType = InteractionEventKind.Dwell,
+                ProductId = "p-a",
+                DurationMs = 600
+            },
+            new()
+            {
+                SignalId = "s6",
+                OccurredAtUtc = "2025-03-24T12:00:05.0000000Z",
+                EventType = InteractionEventKind.ContextChange,
+                ProductId = "p-a"
+            }
+        };
+
+        var c = SessionPreferenceLeaningExtractor.BuildSessionIntelligence(
+            "sess-switch-split",
+            "2025-03-24T12:00:06.0000000Z",
+            signals);
+
+        Assert.Equal(1, c.DerivedMetrics.ExplorationSwitchCount);
+        Assert.Equal(2, c.DerivedMetrics.SwitchCount);
     }
 
     [Fact]

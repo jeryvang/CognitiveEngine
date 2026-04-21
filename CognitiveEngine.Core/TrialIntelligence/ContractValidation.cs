@@ -28,6 +28,18 @@ public static class ContractValidation
             throw new ArgumentException("confidence_interpretation is required.", nameof(contract));
         if (contract.StruggleDecisionSummary == null)
             throw new ArgumentException("struggle_decision_summary is required.", nameof(contract));
+        if (contract.DerivedMetrics == null)
+            throw new ArgumentException("derived_metrics is required.", nameof(contract));
+        if (contract.DerivedMetrics.SwitchCount < 0)
+            throw new ArgumentException("derived_metrics.switch_count cannot be negative.", nameof(contract));
+        if (contract.DerivedMetrics.ExplorationSwitchCount < 0)
+            throw new ArgumentException("derived_metrics.exploration_switch_count cannot be negative.", nameof(contract));
+        if (contract.DerivedMetrics.SelectionEventsCount < 0)
+            throw new ArgumentException("derived_metrics.selection_events_count cannot be negative.", nameof(contract));
+        if (contract.DerivedMetrics.TotalCompareTimeMs < 0)
+            throw new ArgumentException("derived_metrics.total_compare_time_ms cannot be negative.", nameof(contract));
+        if (string.IsNullOrWhiteSpace(contract.DerivedMetrics.CompareTimeBasis))
+            throw new ArgumentException("derived_metrics.compare_time_basis is required.", nameof(contract));
     }
 
     public static void ValidateAggregateOrThrow(ProductAggregate contract)

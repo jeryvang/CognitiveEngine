@@ -8,10 +8,10 @@ namespace CognitiveEngine.Tests;
 public class TrialIntelligenceTests
 {
     private const string FixedSessionJson =
-        "{\"schema_version\":\"1.0.0\",\"session_id\":\"sess-001\",\"exported_at_utc\":\"2025-03-24T12:00:00.0000000Z\",\"interaction_signals\":[{\"signal_id\":\"a1b2c3d4e5f6478990a1b2c3d4e5f601\",\"occurred_at_utc\":\"2025-03-24T12:00:01.0000000Z\",\"event_type\":\"compare\",\"product_id\":\"p-a\",\"intensity\":0.5,\"duration_ms\":1200}],\"preference_signals\":[{\"signal_id\":\"b2c3d4e5f6478990a1b2c3d4e5f6012\",\"derived_at_utc\":\"2025-03-24T12:00:02.0000000Z\",\"product_id\":\"p-a\",\"preference_strength\":0.7,\"basis\":\"dwell_weighted\"}],\"leaning_indicators\":[{\"product_id\":\"p-a\",\"leaning_score\":0.8,\"confidence\":0.6,\"rank\":1},{\"product_id\":\"p-b\",\"leaning_score\":0.2,\"confidence\":0.6,\"rank\":2}],\"friction_episodes\":[],\"decision_readiness\":{\"readiness_score\":0.5,\"readiness_level\":\"medium\",\"is_ready_to_confirm\":false,\"dominant_product_id\":\"p-a\",\"basis\":\"v1\"},\"confidence_interpretation\":{\"stability_score\":0.6,\"trend\":\"improving\",\"interpretation\":\"confidence is forming but still variable\",\"basis\":\"leaning_friction_proxy_v1\"},\"struggle_decision_summary\":{\"journey_classification\":\"balanced\",\"struggle_score\":0.2,\"decision_signal_score\":0.5,\"summary_tag\":\"mixed-signals\"}}";
+        "{\"schema_version\":\"1.2.0\",\"session_id\":\"sess-001\",\"exported_at_utc\":\"2025-03-24T12:00:00.0000000Z\",\"interaction_signals\":[{\"signal_id\":\"a1b2c3d4e5f6478990a1b2c3d4e5f601\",\"occurred_at_utc\":\"2025-03-24T12:00:01.0000000Z\",\"event_type\":\"compare\",\"product_id\":\"p-a\",\"intensity\":0.5,\"duration_ms\":1200}],\"preference_signals\":[{\"signal_id\":\"b2c3d4e5f6478990a1b2c3d4e5f6012\",\"derived_at_utc\":\"2025-03-24T12:00:02.0000000Z\",\"product_id\":\"p-a\",\"preference_strength\":0.7,\"basis\":\"dwell_weighted\"}],\"leaning_indicators\":[{\"product_id\":\"p-a\",\"leaning_score\":0.8,\"confidence\":0.6,\"rank\":1},{\"product_id\":\"p-b\",\"leaning_score\":0.2,\"confidence\":0.6,\"rank\":2}],\"friction_episodes\":[],\"decision_readiness\":{\"readiness_score\":0.5,\"readiness_level\":\"medium\",\"is_ready_to_confirm\":false,\"dominant_product_id\":\"p-a\",\"basis\":\"v1\"},\"confidence_interpretation\":{\"stability_score\":0.6,\"trend\":\"improving\",\"interpretation\":\"confidence is forming but still variable\",\"basis\":\"leaning_friction_proxy_v1\"},\"struggle_decision_summary\":{\"journey_classification\":\"balanced\",\"struggle_score\":0.2,\"decision_signal_score\":0.5,\"summary_tag\":\"mixed-signals\"},\"derived_metrics\":{\"switch_count\":1,\"exploration_switch_count\":3,\"selection_events_count\":2,\"total_compare_time_ms\":3456,\"compare_time_basis\":\"inferred_compare_window_v1(start=compare,end=selection|confirmIntent|contextChange|session_end)\",\"final_selected_product_id\":\"p-a\",\"longest_dwell_product_id\":\"p-a\"}}";
 
     private const string FixedAggregateJson =
-        "{\"schema_version\":\"1.0.0\",\"aggregate_id\":\"agg-trial-1\",\"exported_at_utc\":\"2025-03-24T12:00:00.0000000Z\",\"product_id\":\"p-a\",\"sessions_contributed\":3,\"attraction\":{\"aggregate_attraction_score\":0.42,\"selection_count\":5,\"first_touch_rank\":2},\"engagement\":{\"total_dwell_ms\":9000,\"focused_view_count\":4,\"return_visit_count\":1},\"comparison_patterns\":{\"compare_events_count\":2,\"unique_comparison_partner_product_ids\":[\"p-b\",\"p-c\"],\"hesitation_aligned_event_count\":0},\"friction_hotspots\":{\"total_friction_episodes_count\":0,\"total_friction_event_count\":0,\"total_friction_dwell_ms\":0,\"hotspots\":[]},\"struggle_trends\":{\"average_product_struggle_score\":0.0,\"struggle_trend_direction\":\"stable\",\"journey_classification_counts\":{\"indecisive_count\":0,\"struggling_count\":0,\"balanced_count\":0,\"decisive_count\":0}},\"readiness_trends\":{\"dominant_product_sessions_contributing\":0,\"average_readiness_score_when_dominant\":0.0,\"ready_to_confirm_sessions_count_when_dominant\":0,\"readiness_level_counts_when_dominant\":{\"low_count\":0,\"medium_count\":0,\"high_count\":0},\"readiness_trend_direction\":\"stable\"}}";
+        "{\"schema_version\":\"1.2.0\",\"aggregate_id\":\"agg-trial-1\",\"exported_at_utc\":\"2025-03-24T12:00:00.0000000Z\",\"product_id\":\"p-a\",\"sessions_contributed\":3,\"attraction\":{\"aggregate_attraction_score\":0.42,\"selection_count\":5,\"first_touch_rank\":2},\"engagement\":{\"total_dwell_ms\":9000,\"focused_view_count\":4,\"return_visit_count\":1},\"comparison_patterns\":{\"compare_events_count\":2,\"unique_comparison_partner_product_ids\":[\"p-b\",\"p-c\"],\"hesitation_aligned_event_count\":0},\"friction_hotspots\":{\"total_friction_episodes_count\":0,\"total_friction_event_count\":0,\"total_friction_dwell_ms\":0,\"hotspots\":[]},\"struggle_trends\":{\"average_product_struggle_score\":0.0,\"struggle_trend_direction\":\"stable\",\"journey_classification_counts\":{\"indecisive_count\":0,\"struggling_count\":0,\"balanced_count\":0,\"decisive_count\":0}},\"readiness_trends\":{\"dominant_product_sessions_contributing\":0,\"average_readiness_score_when_dominant\":0.0,\"ready_to_confirm_sessions_count_when_dominant\":0,\"readiness_level_counts_when_dominant\":{\"low_count\":0,\"medium_count\":0,\"high_count\":0},\"readiness_trend_direction\":\"stable\"}}";
 
     [Fact]
     public void SessionContract_RoundTrip_PreservesValues()
@@ -82,6 +82,16 @@ public class TrialIntelligenceTests
                 StruggleScore = 0.1,
                 DecisionSignalScore = 0.8,
                 SummaryTag = "decision-led"
+            },
+            DerivedMetrics = new SessionDerivedMetrics
+            {
+                SwitchCount = 3,
+                ExplorationSwitchCount = 4,
+                SelectionEventsCount = 2,
+                TotalCompareTimeMs = 1400,
+                CompareTimeBasis = "inferred_compare_window_v1(start=compare,end=selection|confirmIntent|contextChange|session_end)",
+                FinalSelectedProductId = "prod-1",
+                LongestDwellProductId = "prod-2"
             }
         };
 
@@ -100,6 +110,10 @@ public class TrialIntelligenceTests
         Assert.NotNull(back.DecisionReadiness);
         Assert.NotNull(back.ConfidenceInterpretation);
         Assert.NotNull(back.StruggleDecisionSummary);
+        Assert.NotNull(back.DerivedMetrics);
+        Assert.Equal(3, back.DerivedMetrics.SwitchCount);
+        Assert.Equal(4, back.DerivedMetrics.ExplorationSwitchCount);
+        Assert.Equal(2, back.DerivedMetrics.SelectionEventsCount);
     }
 
     [Fact]

@@ -10,6 +10,8 @@ namespace CognitiveEngine.Core.TrialIntelligence;
 
 public static class SessionPreferenceLeaningExtractor
 {
+    private const string CompareTimeBasis = "inferred_compare_window_v1(start=compare,end=selection|confirmIntent|contextChange|session_end)";
+
     /// <summary>
     /// Derives session-level preference signals and leaning indicators from interaction events.
     /// Deterministic by construction: stable ordering, stable ids, no randomness.
@@ -57,6 +59,7 @@ public static class SessionPreferenceLeaningExtractor
 
         var preferenceSignals = DerivePreferenceSignals(sessionId, signals);
         var leaning = DeriveLeaningIndicators(preferenceSignals);
+        var derivedMetrics = DeriveSessionMetrics(signals);
 
         var normalizedStateTimeline = stateTimeline?.ToList() ?? signals
             .Select(s => (s.OccurredAtUtc, InferStateFromInteraction(s)))
@@ -76,7 +79,42 @@ public static class SessionPreferenceLeaningExtractor
             FrictionEpisodes = frictionEpisodes,
             DecisionReadiness = readiness,
             ConfidenceInterpretation = confidenceInterpretation,
-            StruggleDecisionSummary = struggleSummary
+            StruggleDecisionSummary = struggleSummary,
+            DerivedMetrics = derivedMetrics
+        };
+    }
+
+    private static SessionDerivedMetrics DeriveSessionMetrics(List<InteractionSignal> signals)
+    {
+        if (signals.Count == 0)
+        {
+            return new SessionDerivedMetrics
+            {
+                SwitchCount = 0,
+                ExplorationSwitchCount = 0,
+                SelectionEventsCount = 0,
+                TotalCompareTimeMs = 0,
+                CompareTimeBasis = CompareTimeBasis,
+                FinalSelectedProductId = null,
+                LongestDwellProductId = null
+            };
+        }
+
+        int selectionEventsCount = signals.Count(s => s.EventType == InteractionEventKind.Selection);
+        var compareComputation = ComputeCompareAndSwitchMetrics(signals);
+        string? finalSelectedProductId = FindFinalSelectedProductId(signals);
+        string? longestDwellProductId = FindLongestDwellProductId(signals);
+
+        return new SessionDerivedMetrics
+        {
+            // switch_count is compare-scoped by design (A<->B behavior inside compare windows).
+            SwitchCount = compareComputation.CompareSwitchCount,
+            ExplorationSwitchCount = compareComputation.ExplorationSwitchCount,
+            SelectionEventsCount = selectionEventsCount,
+            TotalCompareTimeMs = compareComputation.TotalCompareTimeMs,
+            CompareTimeBasis = CompareTimeBasis,
+            FinalSelectedProductId = finalSelectedProductId,
+            LongestDwellProductId = longestDwellProductId
         };
     }
 
@@ -183,6 +221,122 @@ public static class SessionPreferenceLeaningExtractor
 
     private static double Round4(double v) => Math.Round(v, 4, MidpointRounding.AwayFromZero);
 
+    private static CompareComputation ComputeCompareAndSwitchMetrics(List<InteractionSignal> signals)
+    {
+        long totalMs = 0;
+        bool inCompare = false;
+        DateTime compareStart = default;
+        int compareSwitchCount = 0;
+        int explorationSwitchCount = 0;
+        string? lastCompareProductId = null;
+        string? lastExplorationProductId = null;
+        DateTime lastSeen = ParseUtcOrThrow(signals[0].OccurredAtUtc);
+
+        foreach (var signal in signals)
+        {
+            var ts = ParseUtcOrThrow(signal.OccurredAtUtc);
+            if (ts > lastSeen)
+                lastSeen = ts;
+
+            if (!inCompare && signal.EventType == InteractionEventKind.Compare)
+            {
+                inCompare = true;
+                compareStart = ts;
+                lastCompareProductId = string.IsNullOrWhiteSpace(signal.ProductId) ? null : signal.ProductId;
+                continue;
+            }
+
+            if (inCompare)
+            {
+                if (!string.IsNullOrWhiteSpace(signal.ProductId))
+                {
+                    if (lastCompareProductId != null
+                        && !string.Equals(lastCompareProductId, signal.ProductId, StringComparison.Ordinal))
+                    {
+                        compareSwitchCount++;
+                    }
+
+                    lastCompareProductId = signal.ProductId;
+                }
+
+                if (IsCompareExitEvent(signal.EventType))
+                {
+                    totalMs += PositiveDurationMs(compareStart, ts);
+                    inCompare = false;
+
+                    if (!string.IsNullOrWhiteSpace(signal.ProductId))
+                        lastExplorationProductId = signal.ProductId;
+                }
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(signal.ProductId))
+                continue;
+
+            if (lastExplorationProductId != null
+                && !string.Equals(lastExplorationProductId, signal.ProductId, StringComparison.Ordinal))
+            {
+                explorationSwitchCount++;
+            }
+
+            lastExplorationProductId = signal.ProductId;
+        }
+
+        if (inCompare)
+            totalMs += PositiveDurationMs(compareStart, lastSeen);
+
+        return new CompareComputation(
+            compareSwitchCount: compareSwitchCount,
+            explorationSwitchCount: explorationSwitchCount,
+            totalCompareTimeMs: totalMs);
+    }
+
+    private static string? FindFinalSelectedProductId(List<InteractionSignal> signals)
+    {
+        return signals
+            .Where(s => s.EventType == InteractionEventKind.Selection && !string.IsNullOrWhiteSpace(s.ProductId))
+            .Select(s => s.ProductId)
+            .LastOrDefault();
+    }
+
+    private static string? FindLongestDwellProductId(List<InteractionSignal> signals)
+    {
+        return signals
+            .Where(s => s.EventType == InteractionEventKind.Dwell && !string.IsNullOrWhiteSpace(s.ProductId))
+            .GroupBy(s => s.ProductId, StringComparer.Ordinal)
+            .Select(g => new
+            {
+                ProductId = g.Key,
+                TotalDwellMs = g.Sum(x => Math.Max(0, x.DurationMs ?? 0))
+            })
+            .OrderByDescending(x => x.TotalDwellMs)
+            .ThenBy(x => x.ProductId, StringComparer.Ordinal)
+            .Select(x => x.ProductId)
+            .FirstOrDefault();
+    }
+
+    private static bool IsCompareExitEvent(InteractionEventKind eventType)
+    {
+        return eventType == InteractionEventKind.Selection
+               || eventType == InteractionEventKind.ConfirmIntent
+               || eventType == InteractionEventKind.ContextChange;
+    }
+
+    private static long PositiveDurationMs(DateTime start, DateTime end)
+    {
+        if (end <= start) return 0;
+        return (long)(end - start).TotalMilliseconds;
+    }
+
+    private static DateTime ParseUtcOrThrow(string value)
+    {
+        if (!DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dt))
+            throw new ArgumentException($"Timestamp must be ISO 8601 parseable ({Schema.UtcTimestampFormatDescription}).");
+        if (dt.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("Timestamp must be UTC (Kind=Utc or Z offset).");
+        return dt;
+    }
+
     private static StateType InferStateFromInteraction(InteractionSignal signal)
     {
         return signal.EventType switch
@@ -236,6 +390,23 @@ public static class SessionPreferenceLeaningExtractor
             CompareCount = compareCount;
             DwellMs = dwellMs;
             LastOccurredAtUtc = lastOccurredAtUtc;
+        }
+    }
+
+    private readonly struct CompareComputation
+    {
+        public int CompareSwitchCount { get; }
+        public int ExplorationSwitchCount { get; }
+        public long TotalCompareTimeMs { get; }
+
+        public CompareComputation(
+            int compareSwitchCount,
+            int explorationSwitchCount,
+            long totalCompareTimeMs)
+        {
+            CompareSwitchCount = compareSwitchCount;
+            ExplorationSwitchCount = explorationSwitchCount;
+            TotalCompareTimeMs = totalCompareTimeMs;
         }
     }
 }
