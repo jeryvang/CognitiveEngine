@@ -11,6 +11,7 @@ namespace CognitiveEngine.Core.TrialIntelligence;
 public static class SessionPreferenceLeaningExtractor
 {
     private const string CompareTimeBasis = "inferred_compare_window_v1(start=compare,end=selection|confirmIntent|contextChange|session_end)";
+    private const string DecisionConvergenceBasis = "convergence_v1(dwell_concentration,compare_switch_penalty,exploration_switch_penalty,selection_presence)";
 
     /// <summary>
     /// Derives session-level preference signals and leaning indicators from interaction events.
@@ -96,7 +97,10 @@ public static class SessionPreferenceLeaningExtractor
                 TotalCompareTimeMs = 0,
                 CompareTimeBasis = CompareTimeBasis,
                 FinalSelectedProductId = null,
-                LongestDwellProductId = null
+                LongestDwellProductId = null,
+                DecisionConvergenceScore = 0.0,
+                DecisionConvergenceLevel = DecisionConvergenceLevel.Low,
+                DecisionConvergenceBasis = DecisionConvergenceBasis
             };
         }
 
@@ -104,6 +108,7 @@ public static class SessionPreferenceLeaningExtractor
         var compareComputation = ComputeCompareAndSwitchMetrics(signals);
         string? finalSelectedProductId = FindFinalSelectedProductId(signals);
         string? longestDwellProductId = FindLongestDwellProductId(signals);
+        var convergence = ComputeDecisionConvergence(signals, compareComputation, finalSelectedProductId);
 
         return new SessionDerivedMetrics
         {
@@ -114,7 +119,10 @@ public static class SessionPreferenceLeaningExtractor
             TotalCompareTimeMs = compareComputation.TotalCompareTimeMs,
             CompareTimeBasis = CompareTimeBasis,
             FinalSelectedProductId = finalSelectedProductId,
-            LongestDwellProductId = longestDwellProductId
+            LongestDwellProductId = longestDwellProductId,
+            DecisionConvergenceScore = convergence.Score,
+            DecisionConvergenceLevel = convergence.Level,
+            DecisionConvergenceBasis = DecisionConvergenceBasis
         };
     }
 
@@ -248,7 +256,7 @@ public static class SessionPreferenceLeaningExtractor
 
             if (inCompare)
             {
-                if (!string.IsNullOrWhiteSpace(signal.ProductId))
+                if (IsSwitchCandidateEvent(signal.EventType) && !string.IsNullOrWhiteSpace(signal.ProductId))
                 {
                     if (lastCompareProductId != null
                         && !string.Equals(lastCompareProductId, signal.ProductId, StringComparison.Ordinal))
@@ -271,6 +279,9 @@ public static class SessionPreferenceLeaningExtractor
             }
 
             if (string.IsNullOrWhiteSpace(signal.ProductId))
+                continue;
+
+            if (!IsSwitchCandidateEvent(signal.EventType))
                 continue;
 
             if (lastExplorationProductId != null
@@ -320,6 +331,57 @@ public static class SessionPreferenceLeaningExtractor
         return eventType == InteractionEventKind.Selection
                || eventType == InteractionEventKind.ConfirmIntent
                || eventType == InteractionEventKind.ContextChange;
+    }
+
+    private static bool IsSwitchCandidateEvent(InteractionEventKind eventType)
+    {
+        // Keep switch metrics tied to discrete intent/navigation events and ignore noisy micro-gestures
+        // (e.g., swipe or variant interactions mapped through non-navigation event types).
+        return eventType == InteractionEventKind.Selection
+               || eventType == InteractionEventKind.Compare
+               || eventType == InteractionEventKind.ConfirmIntent
+               || eventType == InteractionEventKind.ContextChange;
+    }
+
+    private static DecisionConvergenceComputation ComputeDecisionConvergence(
+        List<InteractionSignal> signals,
+        CompareComputation compareComputation,
+        string? finalSelectedProductId)
+    {
+        long totalDwellMs = signals
+            .Where(s => s.EventType == InteractionEventKind.Dwell)
+            .Sum(s => (long)Math.Max(0, s.DurationMs ?? 0));
+
+        long dominantDwellMs = signals
+            .Where(s => s.EventType == InteractionEventKind.Dwell && !string.IsNullOrWhiteSpace(s.ProductId))
+            .GroupBy(s => s.ProductId, StringComparer.Ordinal)
+            .Select(g => g.Sum(x => (long)Math.Max(0, x.DurationMs ?? 0)))
+            .DefaultIfEmpty(0L)
+            .Max();
+
+        double dwellConcentration = totalDwellMs <= 0 ? 0.0 : Clamp01((double)dominantDwellMs / totalDwellMs);
+        double compareSwitchPenalty = NormalizePenalty(compareComputation.CompareSwitchCount);
+        double explorationSwitchPenalty = NormalizePenalty(compareComputation.ExplorationSwitchCount);
+        double selectionPresence = string.IsNullOrWhiteSpace(finalSelectedProductId) ? 0.0 : 1.0;
+
+        double score = Clamp01(
+            0.40 * dwellConcentration +
+            0.30 * (1.0 - compareSwitchPenalty) +
+            0.20 * (1.0 - explorationSwitchPenalty) +
+            0.10 * selectionPresence);
+        score = Round4(score);
+
+        return new DecisionConvergenceComputation(
+            score,
+            score >= 0.67 ? DecisionConvergenceLevel.High :
+            score >= 0.34 ? DecisionConvergenceLevel.Medium :
+            DecisionConvergenceLevel.Low);
+    }
+
+    private static double NormalizePenalty(int count)
+    {
+        if (count <= 0) return 0.0;
+        return Clamp01(count / (count + 2.0));
     }
 
     private static long PositiveDurationMs(DateTime start, DateTime end)
@@ -407,6 +469,18 @@ public static class SessionPreferenceLeaningExtractor
             CompareSwitchCount = compareSwitchCount;
             ExplorationSwitchCount = explorationSwitchCount;
             TotalCompareTimeMs = totalCompareTimeMs;
+        }
+    }
+
+    private readonly struct DecisionConvergenceComputation
+    {
+        public double Score { get; }
+        public DecisionConvergenceLevel Level { get; }
+
+        public DecisionConvergenceComputation(double score, DecisionConvergenceLevel level)
+        {
+            Score = score;
+            Level = level;
         }
     }
 }

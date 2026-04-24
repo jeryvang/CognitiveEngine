@@ -25,6 +25,11 @@ public class SessionPreferenceLeaningExtractorTests
         Assert.Equal(0, c.DerivedMetrics.TotalCompareTimeMs);
         Assert.Null(c.DerivedMetrics.FinalSelectedProductId);
         Assert.Null(c.DerivedMetrics.LongestDwellProductId);
+        Assert.Equal(0.0, c.DerivedMetrics.DecisionConvergenceScore);
+        Assert.Equal(DecisionConvergenceLevel.Low, c.DerivedMetrics.DecisionConvergenceLevel);
+        Assert.Equal(
+            "convergence_v1(dwell_concentration,compare_switch_penalty,exploration_switch_penalty,selection_presence)",
+            c.DerivedMetrics.DecisionConvergenceBasis);
     }
 
     [Fact]
@@ -74,11 +79,16 @@ public class SessionPreferenceLeaningExtractorTests
         Assert.Equal(2, c.LeaningIndicators[1].Rank);
         Assert.True(c.LeaningIndicators[0].LeaningScore >= c.LeaningIndicators[1].LeaningScore);
         Assert.Equal(0, c.DerivedMetrics.SwitchCount);
-        Assert.Equal(2, c.DerivedMetrics.ExplorationSwitchCount);
+        Assert.Equal(0, c.DerivedMetrics.ExplorationSwitchCount);
         Assert.Equal(1, c.DerivedMetrics.SelectionEventsCount);
         Assert.Equal(0, c.DerivedMetrics.TotalCompareTimeMs);
         Assert.Equal("p-a", c.DerivedMetrics.FinalSelectedProductId);
         Assert.Equal("p-b", c.DerivedMetrics.LongestDwellProductId);
+        Assert.True(c.DerivedMetrics.DecisionConvergenceScore > 0.0);
+        Assert.NotNull(c.DerivedMetrics.DecisionConvergenceLevel);
+        Assert.Equal(
+            "convergence_v1(dwell_concentration,compare_switch_penalty,exploration_switch_penalty,selection_presence)",
+            c.DerivedMetrics.DecisionConvergenceBasis);
 
         // Leaning confidence is session-level and should be identical across products.
         Assert.Equal(c.LeaningIndicators[0].Confidence, c.LeaningIndicators[1].Confidence);
@@ -237,7 +247,7 @@ public class SessionPreferenceLeaningExtractorTests
             signals);
 
         Assert.Equal(1, c.DerivedMetrics.ExplorationSwitchCount);
-        Assert.Equal(2, c.DerivedMetrics.SwitchCount);
+        Assert.Equal(0, c.DerivedMetrics.SwitchCount);
     }
 
     [Fact]

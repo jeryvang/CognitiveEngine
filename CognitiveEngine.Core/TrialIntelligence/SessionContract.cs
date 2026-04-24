@@ -227,4 +227,20 @@ public sealed class SessionDerivedMetrics
 
     [JsonProperty("longest_dwell_product_id", Order = 7)]
     public string? LongestDwellProductId { get; set; }
+
+    [JsonProperty("decision_convergence_score", Order = 8)]
+    public double? DecisionConvergenceScore { get; set; }
+
+    [JsonProperty("decision_convergence_level", Order = 9)]
+    public DecisionConvergenceLevel? DecisionConvergenceLevel { get; set; }
+
+    [JsonProperty("decision_convergence_basis", Order = 10)]
+    public string? DecisionConvergenceBasis { get; set; }
+}
+
+public enum DecisionConvergenceLevel
+{
+    Low,
+    Medium,
+    High
 }

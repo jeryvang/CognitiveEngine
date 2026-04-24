@@ -40,6 +40,17 @@ public static class ContractValidation
             throw new ArgumentException("derived_metrics.total_compare_time_ms cannot be negative.", nameof(contract));
         if (string.IsNullOrWhiteSpace(contract.DerivedMetrics.CompareTimeBasis))
             throw new ArgumentException("derived_metrics.compare_time_basis is required.", nameof(contract));
+        if (contract.DerivedMetrics.DecisionConvergenceScore.HasValue)
+        {
+            var score = contract.DerivedMetrics.DecisionConvergenceScore.Value;
+            if (score < 0.0 || score > 1.0)
+                throw new ArgumentException("derived_metrics.decision_convergence_score must be within [0,1].", nameof(contract));
+        }
+        if (contract.DerivedMetrics.DecisionConvergenceLevel.HasValue
+            && string.IsNullOrWhiteSpace(contract.DerivedMetrics.DecisionConvergenceBasis))
+        {
+            throw new ArgumentException("derived_metrics.decision_convergence_basis is required when decision_convergence_level is present.", nameof(contract));
+        }
     }
 
     public static void ValidateAggregateOrThrow(ProductAggregate contract)
