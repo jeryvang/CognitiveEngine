@@ -247,7 +247,53 @@ public class SessionPreferenceLeaningExtractorTests
             signals);
 
         Assert.Equal(1, c.DerivedMetrics.ExplorationSwitchCount);
-        Assert.Equal(0, c.DerivedMetrics.SwitchCount);
+        Assert.Equal(2, c.DerivedMetrics.SwitchCount);
+    }
+
+    [Fact]
+    public void BuildSessionIntelligence_FinalSelectedProductId_RequiresSupportingIntent()
+    {
+        var signals = new List<InteractionSignal>
+        {
+            new()
+            {
+                SignalId = "s1",
+                OccurredAtUtc = "2025-03-24T12:00:00.0000000Z",
+                EventType = InteractionEventKind.Selection,
+                ProductId = "p-a"
+            },
+            new()
+            {
+                SignalId = "s2",
+                OccurredAtUtc = "2025-03-24T12:00:01.0000000Z",
+                EventType = InteractionEventKind.Dwell,
+                ProductId = "p-a",
+                DurationMs = 3200
+            },
+            new()
+            {
+                SignalId = "s3",
+                OccurredAtUtc = "2025-03-24T12:00:02.0000000Z",
+                EventType = InteractionEventKind.Selection,
+                ProductId = "p-c"
+            },
+            new()
+            {
+                SignalId = "s4",
+                OccurredAtUtc = "2025-03-24T12:00:02.1000000Z",
+                EventType = InteractionEventKind.Dwell,
+                ProductId = "p-c",
+                DurationMs = 180
+            }
+        };
+
+        var c = SessionPreferenceLeaningExtractor.BuildSessionIntelligence(
+            "sess-final-selection-heuristic",
+            "2025-03-24T12:00:03.0000000Z",
+            signals);
+
+        Assert.Null(c.DerivedMetrics.FinalSelectedProductId);
+        Assert.Equal("p-a", c.DerivedMetrics.LongestDwellProductId);
     }
 
     [Fact]

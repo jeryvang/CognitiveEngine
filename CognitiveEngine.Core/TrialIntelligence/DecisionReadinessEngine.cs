@@ -33,6 +33,8 @@ public static class DecisionReadinessEngine
         IReadOnlyList<FrictionEpisode> frictionEpisodes)
     {
         int confirmCount = signals.Count(s => s.EventType == InteractionEventKind.ConfirmIntent);
+        int selectionCount = signals.Count(s => s.EventType == InteractionEventKind.Selection);
+        int compareCount = signals.Count(s => s.EventType == InteractionEventKind.Compare);
         bool hasReadyBacktrack = frictionEpisodes.Any(f => f.FrictionKind == FrictionKind.PostReadyBacktrack);
         double topLeaning = leaning.Count == 0 ? 0.0 : leaning.Max(x => x.LeaningScore);
         double gap = 0.0;
@@ -42,7 +44,23 @@ public static class DecisionReadinessEngine
             gap = Math.Max(0.0, ordered[0].LeaningScore - ordered[1].LeaningScore);
         }
 
-        double score = Clamp01(0.45 * (confirmCount > 0 ? 1.0 : 0.0) + 0.35 * topLeaning + 0.20 * gap - 0.20 * Math.Min(1.0, frictionEpisodes.Count / 3.0));
+        double frictionSeverity = frictionEpisodes.Sum(FrictionSeverityWeight);
+        double frictionPenalty = 0.16 * Math.Min(1.0, frictionSeverity / 3.0);
+
+        bool healthyCompareFlow =
+            compareCount > 0 &&
+            selectionCount > 0 &&
+            topLeaning >= 0.65 &&
+            gap >= 0.12 &&
+            !hasReadyBacktrack;
+        double healthyFlowBoost = healthyCompareFlow ? 0.16 : 0.0;
+
+        double score = Clamp01(
+            0.45 * (confirmCount > 0 ? 1.0 : 0.0) +
+            0.35 * topLeaning +
+            0.20 * gap -
+            frictionPenalty +
+            healthyFlowBoost);
         if (hasReadyBacktrack)
             score = Clamp01(score - 0.10);
 
@@ -55,7 +73,7 @@ public static class DecisionReadinessEngine
             ReadinessLevel = level,
             IsReadyToConfirm = level == DecisionReadinessLevel.High && !hasReadyBacktrack,
             DominantProductId = leaning.OrderBy(x => x.Rank).Select(x => x.ProductId).FirstOrDefault(),
-            Basis = "v1(confirm,leaning,gap,friction_penalty)"
+            Basis = "v2(confirm,leaning,gap,weighted_friction_penalty,healthy_compare_boost)"
         };
     }
 
@@ -209,4 +227,15 @@ public static class DecisionReadinessEngine
     }
 
     private static double Round4(double v) => Math.Round(v, 4, MidpointRounding.AwayFromZero);
+
+    private static double FrictionSeverityWeight(FrictionEpisode episode)
+    {
+        return episode.FrictionKind switch
+        {
+            FrictionKind.PostReadyBacktrack => 1.0,
+            FrictionKind.HesitationBurst => 0.75,
+            FrictionKind.ComparisonLoop => 0.50,
+            _ => 0.60
+        };
+    }
 }

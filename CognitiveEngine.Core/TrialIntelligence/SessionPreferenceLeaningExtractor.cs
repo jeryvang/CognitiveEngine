@@ -256,7 +256,7 @@ public static class SessionPreferenceLeaningExtractor
 
             if (inCompare)
             {
-                if (IsSwitchCandidateEvent(signal.EventType) && !string.IsNullOrWhiteSpace(signal.ProductId))
+                if (IsCompareSwitchCandidateEvent(signal.EventType) && !string.IsNullOrWhiteSpace(signal.ProductId))
                 {
                     if (lastCompareProductId != null
                         && !string.Equals(lastCompareProductId, signal.ProductId, StringComparison.Ordinal))
@@ -304,10 +304,37 @@ public static class SessionPreferenceLeaningExtractor
 
     private static string? FindFinalSelectedProductId(List<InteractionSignal> signals)
     {
-        return signals
-            .Where(s => s.EventType == InteractionEventKind.Selection && !string.IsNullOrWhiteSpace(s.ProductId))
-            .Select(s => s.ProductId)
-            .LastOrDefault();
+        var ordered = signals
+            .Where(s => !string.IsNullOrWhiteSpace(s.ProductId))
+            .OrderBy(s => s.OccurredAtUtc, StringComparer.Ordinal)
+            .ThenBy(s => s.ProductId, StringComparer.Ordinal)
+            .ThenBy(s => s.EventType)
+            .ThenBy(s => s.SignalId, StringComparer.Ordinal)
+            .ToList();
+
+        var lastSelection = ordered
+            .LastOrDefault(s => s.EventType == InteractionEventKind.Selection);
+        if (lastSelection == null)
+            return null;
+
+        string productId = lastSelection.ProductId;
+
+        bool hasConfirmForProduct = ordered.Any(s =>
+            string.Equals(s.ProductId, productId, StringComparison.Ordinal) &&
+            s.EventType == InteractionEventKind.ConfirmIntent);
+        if (hasConfirmForProduct)
+            return productId;
+
+        long dwellForProduct = ordered
+            .Where(s => string.Equals(s.ProductId, productId, StringComparison.Ordinal) &&
+                        s.EventType == InteractionEventKind.Dwell)
+            .Sum(s => (long)Math.Max(0, s.DurationMs ?? 0));
+        if (dwellForProduct >= 2000)
+            return productId;
+
+        // Last selection is only treated as final when it aligns with dominant dwell attention.
+        string? longestDwellProduct = FindLongestDwellProductId(ordered);
+        return string.Equals(longestDwellProduct, productId, StringComparison.Ordinal) ? productId : null;
     }
 
     private static string? FindLongestDwellProductId(List<InteractionSignal> signals)
@@ -341,6 +368,12 @@ public static class SessionPreferenceLeaningExtractor
                || eventType == InteractionEventKind.Compare
                || eventType == InteractionEventKind.ConfirmIntent
                || eventType == InteractionEventKind.ContextChange;
+    }
+
+    private static bool IsCompareSwitchCandidateEvent(InteractionEventKind eventType)
+    {
+        // During compare windows, dwell product transitions carry real attention shifts between A/B products.
+        return IsSwitchCandidateEvent(eventType) || eventType == InteractionEventKind.Dwell;
     }
 
     private static DecisionConvergenceComputation ComputeDecisionConvergence(

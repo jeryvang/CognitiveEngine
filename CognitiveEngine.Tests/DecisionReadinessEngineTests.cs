@@ -115,4 +115,30 @@ public class DecisionReadinessEngineTests
         Assert.Equal(ConfidenceTrend.Unstable, confidence.Trend);
         Assert.Contains("Confidence trace", confidence.Interpretation);
     }
+
+    [Fact]
+    public void Evaluate_HealthyCompareFlow_DoesNotOverPenalizeReadiness()
+    {
+        var signals = new List<InteractionSignal>
+        {
+            new() { SignalId = "1", OccurredAtUtc = "2025-03-24T12:00:00.0000000Z", EventType = InteractionEventKind.Compare, ProductId = "nike", ComparisonPartnerProductId = "crocs" },
+            new() { SignalId = "2", OccurredAtUtc = "2025-03-24T12:00:01.0000000Z", EventType = InteractionEventKind.Dwell, ProductId = "nike", DurationMs = 1800 },
+            new() { SignalId = "3", OccurredAtUtc = "2025-03-24T12:00:02.0000000Z", EventType = InteractionEventKind.Selection, ProductId = "nike" }
+        };
+        var leaning = new List<LeaningIndicator>
+        {
+            new() { ProductId = "nike", LeaningScore = 0.82, Confidence = 0.7, Rank = 1 },
+            new() { ProductId = "crocs", LeaningScore = 0.62, Confidence = 0.7, Rank = 2 }
+        };
+        var friction = new List<FrictionEpisode>
+        {
+            new() { EpisodeId = "f1", ProductId = "nike", StartedAtUtc = "2025-03-24T12:00:00.0000000Z", EndedAtUtc = "2025-03-24T12:00:02.0000000Z", FrictionKind = FrictionKind.ComparisonLoop, BottleneckTag = "comparison-loop", EventCount = 2, TotalDwellMs = 1800 }
+        };
+
+        var (readiness, _, summary) = DecisionReadinessEngine.Evaluate(signals, leaning, friction);
+
+        Assert.True(readiness.ReadinessScore >= 0.45);
+        Assert.NotEqual(DecisionReadinessLevel.Low, readiness.ReadinessLevel);
+        Assert.NotEqual(JourneyClassification.Indecisive, summary.JourneyClassification);
+    }
 }
