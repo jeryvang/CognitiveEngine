@@ -154,7 +154,7 @@ public sealed class DecisionGuidanceRuntime
     {
         try
         {
-            var behaviorContext = DecisionBehaviorContextFactory.Create(_session.BehaviorSession, in trigger);
+            var behaviorContext = DecisionBehaviorContextFactory.Create(_session.BehaviorSession, in trigger, _session.Config);
             if (build.Shape == DecisionOutputKind.SingleProduct && build.Single != null)
                 build.Single.BehaviorContext = behaviorContext;
             else if (build.Shape == DecisionOutputKind.Comparison && build.Comparison != null)

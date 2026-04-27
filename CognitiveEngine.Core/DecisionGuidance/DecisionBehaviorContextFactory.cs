@@ -13,9 +13,11 @@ public static class DecisionBehaviorContextFactory
 
     public static DecisionBehaviorContext Create(
         DecisionBehaviorSessionContext session,
-        in ResolvedDecisionTrigger trigger)
+        in ResolvedDecisionTrigger trigger,
+        DecisionGuidanceConfig? config = null)
     {
         if (session == null) throw new ArgumentNullException(nameof(session));
+        var cfg = config ?? DecisionGuidanceConfig.CreateDefault();
 
         var preference = ResolvePreference(session, in trigger);
         var weakSignal = session.IsWeakBehaviorSignal();
@@ -30,6 +32,8 @@ public static class DecisionBehaviorContextFactory
         var signalUsage = BuildSignalUsage(session, in trigger);
         if (weakSignal)
             signalUsage.NormalizedSignalStrength = Math.Min(signalUsage.NormalizedSignalStrength, WeakSignalMaxNormalizedStrength);
+        var convergence = ComputeConvergence(session);
+        var disposition = ResolveGuidanceDisposition(preference, convergence, cfg);
 
         return new DecisionBehaviorContext
         {
@@ -42,7 +46,11 @@ public static class DecisionBehaviorContextFactory
                 Confidence = Round4(preference.Confidence),
                 Basis = preference.Basis
             },
-            WhyThisMattersNow = rationale
+            DecisionConvergence = convergence,
+            GuidanceDisposition = disposition,
+            GuidanceDispositionBasis = "p7_disposition_v1(confidence,convergence,ambiguity)",
+            WhyThisMattersNow = rationale,
+            RationalePolicy = "repeat_guard_aligned_v1"
         };
     }
 
@@ -62,10 +70,10 @@ public static class DecisionBehaviorContextFactory
         var revisitStrength = session.GetRevisitEvidenceNormalizedStrength(productId);
         var focusStrength = GetFocusNormalizedStrength(session, productId);
         var normalizedSignalStrength = Clamp01(
-            0.25 * selectionStrength +
-            0.25 * dwellStrength +
+            0.28 * selectionStrength +
+            0.32 * dwellStrength +
             0.20 * revisitStrength +
-            0.30 * focusStrength);
+            0.20 * focusStrength);
         return BuildSignalUsageOutput(session, normalizedSignalStrength);
     }
 
@@ -84,12 +92,14 @@ public static class DecisionBehaviorContextFactory
             session.GetRevisitEvidenceNormalizedStrength(trigger.ProductIdHigh));
         var compareStrength = session.GetCompareEvidenceNormalizedStrength(trigger.ProductIdLow, trigger.ProductIdHigh);
         var pairRepeatBoost = GetComparePairRepeatBoost(session, trigger.ProductIdLow, trigger.ProductIdHigh);
+        var swipePressure = NormalizeSwipePressure(session);
         var normalizedSignalStrength = Clamp01(
-            0.25 * selectionStrength +
-            0.25 * dwellStrength +
-            0.20 * revisitStrength +
+            0.22 * selectionStrength +
+            0.33 * dwellStrength +
+            0.15 * revisitStrength +
             0.25 * compareStrength +
-            0.05 * pairRepeatBoost);
+            0.10 * pairRepeatBoost -
+            0.05 * swipePressure);
         return BuildSignalUsageOutput(session, normalizedSignalStrength);
     }
 
@@ -128,6 +138,13 @@ public static class DecisionBehaviorContextFactory
         return Clamp01((pairCount - 1) / 3.0);
     }
 
+    private static double NormalizeSwipePressure(DecisionBehaviorSessionContext session)
+    {
+        if (session.FocusSwitchCount <= 0)
+            return 0.0;
+        return Clamp01((double)session.SwipeCount / session.FocusSwitchCount);
+    }
+
     private static DecisionPreferenceResult ResolvePreference(
         DecisionBehaviorSessionContext session,
         in ResolvedDecisionTrigger trigger) =>
@@ -149,6 +166,63 @@ public static class DecisionBehaviorContextFactory
                 session,
                 preference,
                 trigger.ProductIdLow);
+
+    private static DecisionConvergenceSignal ComputeConvergence(DecisionBehaviorSessionContext session)
+    {
+        double selectionSignal = Clamp01(session.SelectionCount / 3.0);
+        double compareSignal = Clamp01(session.CompareCount / 3.0);
+        double dwellSignal = Clamp01(session.DwellCount / 4.0);
+        double revisitPenalty = Clamp01(session.RevisitCount / 3.0);
+        double swipePenalty = Clamp01(session.SwipeCount / 6.0);
+        double score = Clamp01(
+            0.35 * selectionSignal +
+            0.35 * compareSignal +
+            0.20 * dwellSignal -
+            0.05 * revisitPenalty -
+            0.05 * swipePenalty);
+        score = Round4(score);
+
+        DecisionConvergenceLevel level = score >= 0.67
+            ? DecisionConvergenceLevel.High
+            : score >= 0.34
+                ? DecisionConvergenceLevel.Medium
+                : DecisionConvergenceLevel.Low;
+
+        DecisionConvergenceTrend trend = session.SelectionCount > session.RevisitCount
+            ? DecisionConvergenceTrend.Improving
+            : session.RevisitCount > session.SelectionCount
+                ? DecisionConvergenceTrend.Declining
+                : DecisionConvergenceTrend.Flat;
+
+        return new DecisionConvergenceSignal
+        {
+            Score = score,
+            Level = level,
+            Trend = trend,
+            Basis = "convergence_v1(selection,compare,dwell,swipe,revisit)"
+        };
+    }
+
+    private static GuidanceDisposition ResolveGuidanceDisposition(
+        DecisionPreferenceResult preference,
+        DecisionConvergenceSignal convergence,
+        DecisionGuidanceConfig cfg)
+    {
+        if (preference.IsAmbiguous ||
+            preference.Confidence <= cfg.NeutralMaxConfidence ||
+            convergence.Score <= cfg.NeutralMaxConvergence)
+        {
+            return GuidanceDisposition.Neutral;
+        }
+
+        if (preference.Confidence >= cfg.StrongGuidanceMinConfidence &&
+            convergence.Score >= cfg.StrongGuidanceMinConvergence)
+        {
+            return GuidanceDisposition.Strong;
+        }
+
+        return GuidanceDisposition.Light;
+    }
 
     private static double AverageOrZero(double a, double? b)
     {

@@ -51,6 +51,14 @@ public class DecisionGuidanceIntegrationTests
         rt.Tick(20);
         Assert.NotNull(rt.Session.Presentation.CurrentPrimaryOutput);
         Assert.Equal(DecisionOutputKind.Comparison, rt.Session.Presentation.CurrentPrimaryOutput!.Comparison!.OutputKind);
+        var ctx = rt.Session.Presentation.CurrentPrimaryOutput.Comparison!.BehaviorContext;
+        Assert.NotNull(ctx);
+        Assert.Equal("p7.behavior_context.v2", ctx!.SchemaVersion);
+        Assert.NotNull(ctx.DecisionConvergence);
+        Assert.InRange(ctx.DecisionConvergence.Score, 0.0, 1.0);
+        Assert.Equal("convergence_v1(selection,compare,dwell,swipe,revisit)", ctx.DecisionConvergence.Basis);
+        Assert.Equal("p7_disposition_v1(confidence,convergence,ambiguity)", ctx.GuidanceDispositionBasis);
+        Assert.Equal("repeat_guard_aligned_v1", ctx.RationalePolicy);
     }
 
     [Fact]
@@ -114,5 +122,27 @@ public class DecisionGuidanceIntegrationTests
         Assert.True(rt.TryConsumeExpandTap());
         rt.ResetSession();
         Assert.True(rt.TryConsumeExpandTap());
+    }
+
+    [Fact]
+    public void RepeatGuard_Blocks_Repeated_Compare_Output_And_Rationale_Reemit()
+    {
+        var rt = new DecisionGuidanceRuntime(FastRuntimeConfig(), t => ContentFor(in t));
+        rt.NotifyProductFocusChanged("alpha");
+        rt.NotifyProductFocusChanged("beta");
+
+        var first = rt.ProcessTriggerInput(DecisionTriggerInput.CompareInvoked());
+        Assert.NotNull(first);
+        rt.Tick(20);
+        var firstOutput = rt.Session.Presentation.CurrentPrimaryOutput;
+        Assert.NotNull(firstOutput);
+        Assert.NotNull(firstOutput!.Comparison!.BehaviorContext);
+
+        // Move presentation back to idle but still inside repeat guard window.
+        rt.Tick(200);
+        Assert.Equal(DecisionPresentationPhase.Idle, rt.Session.Presentation.Phase);
+
+        var second = rt.ProcessTriggerInput(DecisionTriggerInput.CompareInvoked());
+        Assert.Null(second);
     }
 }

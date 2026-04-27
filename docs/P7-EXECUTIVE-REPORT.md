@@ -4,6 +4,7 @@
 
 Phase 7 is delivered as a deterministic, behavior-aware extension to AIEngine’s decision guidance layer.  
 The system now uses in-session interaction behavior to produce more relevant guidance context while preserving shipped Phase 6 (P6) decision flow and output compatibility.
+This update also standardizes guidance tone and introduces explicit convergence/disposition signals for stronger calibration.
 
 Status: **Completed and validated**
 
@@ -17,7 +18,7 @@ Implement behavior-driven, context-aware decision intelligence in AIEngine using
 
 ## 2) What Was Delivered
 
-P7 delivers five core capabilities:
+P7 delivers six core capabilities:
 
 - **Behavior signal utilization**  
   Reused existing signals: selection, dwell, swipe/navigation, compare, revisit.
@@ -32,7 +33,10 @@ P7 delivers five core capabilities:
   - weak-signal fallback behavior
 
 - **Context-aware output enrichment**  
-  Added concise “why this matters now” rationale derived from observed behavior.
+  Added concise “why this matters now” rationale derived from observed behavior with standardized tone constraints.
+
+- **Explicit decision convergence + guidance disposition**  
+  Added deterministic convergence score/level/trend and thresholded guidance disposition (`neutral`, `light`, `strong`) so output strength is transparent and auditable.
 
 - **JSON output enrichment (additive)**  
   Added behavior context payload with:
@@ -84,7 +88,15 @@ Included fields:
   - `is_ambiguous`
   - `confidence`
   - `basis`
+- `decision_convergence`
+  - `score`
+  - `level`
+  - `trend`
+  - `basis`
+- `guidance_disposition`
+- `guidance_disposition_basis`
 - `why_this_matters_now`
+- `rationale_policy`
 
 This structure is deterministic and analysis-friendly.
 
@@ -121,7 +133,7 @@ No blocking defects identified in current validation.
 
 Minor residual considerations:
 
-- Add dedicated P7-targeted assertions for exact `behavior_context` field values across canonical session patterns for stronger long-term regression confidence.
+- Continue threshold tuning against real client sessions (luxury single-focus, healthy compare narrowing, weak-signal browsing) to optimize disposition boundaries without reducing determinism.
 
 ---
 

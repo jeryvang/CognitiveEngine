@@ -23,6 +23,10 @@ public sealed class DecisionGuidanceConfig
     public const int DefaultPanelCloseCooldownMs = 2000;
 
     public const int DefaultExpandDuplicateTapIgnoreMs = 300;
+    public const double DefaultStrongGuidanceMinConfidence = 0.68;
+    public const double DefaultStrongGuidanceMinConvergence = 0.65;
+    public const double DefaultNeutralMaxConfidence = 0.40;
+    public const double DefaultNeutralMaxConvergence = 0.45;
 
     [JsonProperty("schema_version", Order = 1, Required = Required.Always)]
     public string SchemaVersion { get; set; } = DecisionGuidanceSchema.ConfigVersion;
@@ -68,6 +72,18 @@ public sealed class DecisionGuidanceConfig
     [JsonProperty("expand_duplicate_tap_ignore_ms", Order = 9, Required = Required.Always)]
     public int ExpandDuplicateTapIgnoreMs { get; set; } = DefaultExpandDuplicateTapIgnoreMs;
 
+    [JsonProperty("strong_guidance_min_confidence", Order = 10, Required = Required.Always)]
+    public double StrongGuidanceMinConfidence { get; set; } = DefaultStrongGuidanceMinConfidence;
+
+    [JsonProperty("strong_guidance_min_convergence", Order = 11, Required = Required.Always)]
+    public double StrongGuidanceMinConvergence { get; set; } = DefaultStrongGuidanceMinConvergence;
+
+    [JsonProperty("neutral_max_confidence", Order = 12, Required = Required.Always)]
+    public double NeutralMaxConfidence { get; set; } = DefaultNeutralMaxConfidence;
+
+    [JsonProperty("neutral_max_convergence", Order = 13, Required = Required.Always)]
+    public double NeutralMaxConvergence { get; set; } = DefaultNeutralMaxConvergence;
+
     public static DecisionGuidanceConfig CreateDefault() => new();
 
     public void ValidateOrThrow()
@@ -85,8 +101,23 @@ public sealed class DecisionGuidanceConfig
         NonNegative(nameof(SustainedStayAfterOutputMs), SustainedStayAfterOutputMs);
         NonNegative(nameof(PanelCloseCooldownMs), PanelCloseCooldownMs);
         NonNegative(nameof(ExpandDuplicateTapIgnoreMs), ExpandDuplicateTapIgnoreMs);
+        ValidateProbability(nameof(StrongGuidanceMinConfidence), StrongGuidanceMinConfidence);
+        ValidateProbability(nameof(StrongGuidanceMinConvergence), StrongGuidanceMinConvergence);
+        ValidateProbability(nameof(NeutralMaxConfidence), NeutralMaxConfidence);
+        ValidateProbability(nameof(NeutralMaxConvergence), NeutralMaxConvergence);
+
+        if (StrongGuidanceMinConfidence < NeutralMaxConfidence)
+            throw new ArgumentException("strong guidance confidence threshold must be >= neutral max confidence.");
+        if (StrongGuidanceMinConvergence < NeutralMaxConvergence)
+            throw new ArgumentException("strong guidance convergence threshold must be >= neutral max convergence.");
 
         if (string.IsNullOrWhiteSpace(SchemaVersion))
             throw new ArgumentException("schema_version is required.", nameof(SchemaVersion));
+    }
+
+    private static void ValidateProbability(string name, double value)
+    {
+        if (value < 0.0 || value > 1.0)
+            throw new ArgumentOutOfRangeException(name, value, $"{name} must be within [0,1].");
     }
 }

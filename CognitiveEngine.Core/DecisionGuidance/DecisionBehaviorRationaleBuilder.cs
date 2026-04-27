@@ -18,25 +18,25 @@ public static class DecisionBehaviorRationaleBuilder
             throw new ArgumentException("productId is required.", nameof(productId));
 
         if (session.IsWeakBehaviorSignal())
-            return "Signal is still limited, so this keeps the guidance simple for now.";
+            return "Signals are still light. Keep exploring before committing.";
 
         if (preference.Kind == PreferenceResultKind.LeanSingleProduct &&
             string.Equals(preference.PreferredProductId, productId, StringComparison.Ordinal))
         {
             if (session.GetSelectionCount(productId) > 0 && session.GetRevisitCount(productId) > 0)
-                return "You keep returning to this option and selecting it, which signals a practical fit.";
+                return $"You keep returning to {productId}. Prioritize it if this pattern continues.";
             if (session.GetSelectionCount(productId) > 0)
-                return "Your recent selections suggest this option matches what matters most right now.";
+                return $"You selected {productId} repeatedly. Use it as the current lead option.";
             if (session.GetDwellCount(productId) > 0)
-                return "You spent more attention here, so this guidance focuses on your active consideration.";
+                return $"You spent more time on {productId}. Validate this option first.";
             if (session.IsRepeatedFocus(productId))
-                return "Your repeated focus on this option suggests it is becoming the leading choice.";
+                return $"You revisited {productId} several times. Compare it against one clear alternative.";
         }
 
         if (preference.IsAmbiguous)
-            return "Your behavior is mixed so far, so this guidance helps clarify the main tradeoff.";
+            return "Your behavior is split. Decide based on one main tradeoff.";
 
-        return "This guidance reflects your recent interaction pattern in the current session.";
+        return "Current behavior is still mixed. Keep the next step simple and measurable.";
     }
 
     public static string BuildComparisonWhyThisMattersNow(
@@ -55,15 +55,15 @@ public static class DecisionBehaviorRationaleBuilder
             throw new ArgumentException("comparison product ids must be distinct.");
 
         if (session.IsWeakBehaviorSignal())
-            return "There is not enough signal yet, so this comparison highlights the key difference only.";
+            return "Signals are still weak. Use this compare to isolate one deciding factor.";
 
         var pairCount = session.GetComparePairCount(productIdA, productIdB);
         if (pairCount > 1)
-            return "You revisited this comparison multiple times, so resolving the core tradeoff matters now.";
+            return $"You compared {productIdA} and {productIdB} multiple times. Choose based on the strongest tradeoff.";
 
         if (preference.Kind == PreferenceResultKind.LeanComparison && !preference.IsAmbiguous)
-            return "Your current compare and focus behavior shows a clearer direction between these options.";
+            return $"Your compare behavior now leans one way. Move forward with the stronger option.";
 
-        return "Current interaction signals are close, so this comparison keeps attention on the deciding difference.";
+        return "These options are still close. Decide with one concrete priority.";
     }
 }

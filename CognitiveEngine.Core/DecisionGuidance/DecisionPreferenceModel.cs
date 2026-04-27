@@ -32,7 +32,7 @@ public static class DecisionPreferenceModel
         return DecisionPreferenceResult.LeanSingle(
             productId,
             confidence,
-            "single_rule_v1:weighted(selection,dwell,revisit,focus)+repeated_focus_boost");
+            "single_rule_v2:weighted(selection,dwell,revisit,focus)+repeated_focus_boost");
     }
 
     public static DecisionPreferenceResult EvaluateComparison(
@@ -69,14 +69,14 @@ public static class DecisionPreferenceModel
                 productIdA,
                 productIdB,
                 confidence,
-                "compare_rule_v1:weighted_delta_with_pair_strength");
+                "compare_rule_v2:weighted_delta_with_pair_strength");
 
         return DecisionPreferenceResult.LeanComparison(
             PreferenceLean.ProductB,
             productIdB,
             productIdA,
             confidence,
-            "compare_rule_v1:weighted_delta_with_pair_strength");
+            "compare_rule_v2:weighted_delta_with_pair_strength");
     }
 
     private static double ComputeProductScore(DecisionBehaviorSessionContext session, string productId)
@@ -90,10 +90,10 @@ public static class DecisionPreferenceModel
         var focus = maxFocus <= 0 ? 0.0 : (double)session.GetFocusCount(productId) / maxFocus;
 
         return Clamp01(
-            0.40 * selection +
-            0.30 * dwell +
-            0.20 * revisit +
-            0.10 * focus);
+            0.34 * selection +
+            0.40 * dwell +
+            0.18 * revisit +
+            0.08 * focus);
     }
 
     private static double Clamp01(double v)
