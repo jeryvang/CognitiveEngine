@@ -236,8 +236,9 @@ public static class SessionPreferenceLeaningExtractor
         DateTime compareStart = default;
         int compareSwitchCount = 0;
         int explorationSwitchCount = 0;
-        string? lastCompareProductId = null;
+        string? lastCompareAttentionProductId = null;
         string? lastExplorationProductId = null;
+        var compareUniverse = new HashSet<string>(StringComparer.Ordinal);
         DateTime lastSeen = ParseUtcOrThrow(signals[0].OccurredAtUtc);
 
         foreach (var signal in signals)
@@ -250,27 +251,45 @@ public static class SessionPreferenceLeaningExtractor
             {
                 inCompare = true;
                 compareStart = ts;
-                lastCompareProductId = string.IsNullOrWhiteSpace(signal.ProductId) ? null : signal.ProductId;
+                compareUniverse.Clear();
+                foreach (var candidate in GetCompareAttentionCandidates(signal))
+                    compareUniverse.Add(candidate);
+                lastCompareAttentionProductId = ChooseCompareAttentionCandidate(
+                    GetCompareAttentionCandidates(signal),
+                    compareUniverse,
+                    null);
                 continue;
             }
 
             if (inCompare)
             {
-                if (IsCompareSwitchCandidateEvent(signal.EventType) && !string.IsNullOrWhiteSpace(signal.ProductId))
+                if (IsCompareSwitchCandidateEvent(signal.EventType))
                 {
-                    if (lastCompareProductId != null
-                        && !string.Equals(lastCompareProductId, signal.ProductId, StringComparison.Ordinal))
+                    var candidates = GetCompareAttentionCandidates(signal);
+                    foreach (var candidate in candidates)
+                        compareUniverse.Add(candidate);
+
+                    var currentAttention = ChooseCompareAttentionCandidate(
+                        candidates,
+                        compareUniverse,
+                        lastCompareAttentionProductId);
+                    if (lastCompareAttentionProductId != null &&
+                        currentAttention != null &&
+                        !string.Equals(lastCompareAttentionProductId, currentAttention, StringComparison.Ordinal))
                     {
                         compareSwitchCount++;
                     }
 
-                    lastCompareProductId = signal.ProductId;
+                    if (currentAttention != null)
+                        lastCompareAttentionProductId = currentAttention;
                 }
 
                 if (IsCompareExitEvent(signal.EventType))
                 {
                     totalMs += PositiveDurationMs(compareStart, ts);
                     inCompare = false;
+                    compareUniverse.Clear();
+                    lastCompareAttentionProductId = null;
 
                     if (!string.IsNullOrWhiteSpace(signal.ProductId))
                         lastExplorationProductId = signal.ProductId;
@@ -374,6 +393,53 @@ public static class SessionPreferenceLeaningExtractor
     {
         // During compare windows, dwell product transitions carry real attention shifts between A/B products.
         return IsSwitchCandidateEvent(eventType) || eventType == InteractionEventKind.Dwell;
+    }
+
+    private static List<string> GetCompareAttentionCandidates(InteractionSignal signal)
+    {
+        var candidates = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(signal.ProductId))
+            candidates.Add(signal.ProductId);
+        if (!string.IsNullOrWhiteSpace(signal.ComparisonPartnerProductId))
+            candidates.Add(signal.ComparisonPartnerProductId!);
+        if (signal.ComparisonPartnerProductIds != null)
+        {
+            foreach (var id in signal.ComparisonPartnerProductIds)
+            {
+                if (!string.IsNullOrWhiteSpace(id))
+                    candidates.Add(id);
+            }
+        }
+
+        return candidates
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private static string? ChooseCompareAttentionCandidate(
+        List<string> candidates,
+        HashSet<string> compareUniverse,
+        string? previousAttention)
+    {
+        if (candidates.Count == 0)
+            return null;
+
+        foreach (var candidate in candidates)
+        {
+            if (!compareUniverse.Contains(candidate))
+                continue;
+
+            if (previousAttention != null &&
+                !string.Equals(candidate, previousAttention, StringComparison.Ordinal))
+                return candidate;
+        }
+
+        if (previousAttention != null &&
+            candidates.Contains(previousAttention, StringComparer.Ordinal))
+            return previousAttention;
+
+        return candidates[0];
     }
 
     private static DecisionConvergenceComputation ComputeDecisionConvergence(

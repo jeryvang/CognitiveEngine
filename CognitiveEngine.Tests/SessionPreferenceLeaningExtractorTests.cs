@@ -251,6 +251,61 @@ public class SessionPreferenceLeaningExtractorTests
     }
 
     [Fact]
+    public void BuildSessionIntelligence_CompareSwitchCount_UsesPartnerShiftDuringCompareWindow()
+    {
+        var signals = new List<InteractionSignal>
+        {
+            new()
+            {
+                SignalId = "c1",
+                OccurredAtUtc = "2025-03-24T12:00:00.0000000Z",
+                EventType = InteractionEventKind.Compare,
+                ProductId = "NewBalance",
+                ComparisonPartnerProductId = "Nike"
+            },
+            new()
+            {
+                SignalId = "c2",
+                OccurredAtUtc = "2025-03-24T12:00:01.0000000Z",
+                EventType = InteractionEventKind.Dwell,
+                ProductId = "NewBalance",
+                DurationMs = 900
+            },
+            // Some host flows keep product_id fixed and carry counterpart in partner field.
+            new()
+            {
+                SignalId = "c3",
+                OccurredAtUtc = "2025-03-24T12:00:02.0000000Z",
+                EventType = InteractionEventKind.Dwell,
+                ProductId = "NewBalance",
+                DurationMs = 850,
+                ComparisonPartnerProductId = "Nike"
+            },
+            new()
+            {
+                SignalId = "c4",
+                OccurredAtUtc = "2025-03-24T12:00:03.0000000Z",
+                EventType = InteractionEventKind.ContextChange,
+                ProductId = "NewBalance"
+            },
+            new()
+            {
+                SignalId = "c5",
+                OccurredAtUtc = "2025-03-24T12:00:04.0000000Z",
+                EventType = InteractionEventKind.Selection,
+                ProductId = "Nike"
+            }
+        };
+
+        var c = SessionPreferenceLeaningExtractor.BuildSessionIntelligence(
+            "sess-compare-context-exit",
+            "2025-03-24T12:00:06.0000000Z",
+            signals);
+
+        Assert.True(c.DerivedMetrics.SwitchCount >= 1);
+    }
+
+    [Fact]
     public void BuildSessionIntelligence_FinalSelectedProductId_RequiresSupportingIntent()
     {
         var signals = new List<InteractionSignal>
