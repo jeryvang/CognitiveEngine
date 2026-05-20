@@ -39,6 +39,32 @@ public static class DecisionBehaviorRationaleBuilder
         return "Current behavior is still mixed. Keep the next step simple and measurable.";
     }
 
+    public static string BuildCompareReturnWhyThisMattersNow(
+        DecisionBehaviorSessionContext session,
+        DecisionPreferenceResult preference,
+        string focusedProductId,
+        string comparisonPartnerProductId)
+    {
+        if (session == null) throw new ArgumentNullException(nameof(session));
+        if (preference == null) throw new ArgumentNullException(nameof(preference));
+        if (string.IsNullOrWhiteSpace(focusedProductId))
+            throw new ArgumentException("focusedProductId is required.", nameof(focusedProductId));
+        if (string.IsNullOrWhiteSpace(comparisonPartnerProductId))
+            throw new ArgumentException("comparisonPartnerProductId is required.", nameof(comparisonPartnerProductId));
+
+        if (session.IsWeakBehaviorSignal())
+            return "You just compared options. Take a moment to validate this one before deciding.";
+
+        if (preference.Kind == PreferenceResultKind.LeanSingleProduct &&
+            string.Equals(preference.PreferredProductId, focusedProductId, StringComparison.Ordinal))
+            return $"You returned to {focusedProductId} after comparing with {comparisonPartnerProductId}. This looks like your stronger fit.";
+
+        if (preference.IsAmbiguous)
+            return $"You returned to {focusedProductId} after comparing with {comparisonPartnerProductId}. Decide using one main tradeoff.";
+
+        return $"You exited compare and focused {focusedProductId}. Confirm this choice against {comparisonPartnerProductId}.";
+    }
+
     public static string BuildComparisonWhyThisMattersNow(
         DecisionBehaviorSessionContext session,
         DecisionPreferenceResult preference,

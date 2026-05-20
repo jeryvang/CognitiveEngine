@@ -16,6 +16,9 @@ public sealed class DecisionGuidanceRuntime
 
     private long _lastExpandLogicalMs = -1;
     private DecisionPresentationPhase _lastPhase;
+    private GuidanceBehaviorSnapshot? _lastEnqueuedBehaviorSnapshot;
+    private ResolvedDecisionTrigger? _lastEnqueuedTrigger;
+    private DecisionOutputBuildResult? _lastEnqueuedBuild;
 
     public DecisionGuidanceRuntime(
         DecisionGuidanceConfig? config = null,
@@ -39,7 +42,9 @@ public sealed class DecisionGuidanceRuntime
         if (_lastPhase != DecisionPresentationPhase.PrimaryVisible &&
             phase == DecisionPresentationPhase.PrimaryVisible)
         {
-            _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.OutputBecameVisible, _session.Presentation.LogicalNowMs));
+            _onEvent?.Invoke(CreateOutputLifecycleEvent(
+                DecisionGuidanceEventKind.OutputBecameVisible,
+                _session.Presentation.LogicalNowMs));
         }
         _lastPhase = phase;
     }
@@ -81,6 +86,9 @@ public sealed class DecisionGuidanceRuntime
         _session.ResetSession();
         _lastExpandLogicalMs = -1;
         _lastPhase = _session.Presentation.Phase;
+        _lastEnqueuedBehaviorSnapshot = null;
+        _lastEnqueuedTrigger = null;
+        _lastEnqueuedBuild = null;
     }
 
     /// <summary>
@@ -128,9 +136,17 @@ public sealed class DecisionGuidanceRuntime
         var resolvedTrigger = trigger.Value;
         var build = DecisionOutputBuilder.Build(resolvedTrigger, _content(resolvedTrigger));
         TryAttachBehaviorContext(build, in resolvedTrigger);
+        var behaviorSnapshot = GuidanceBehaviorSnapshot.TryCreate(build, in resolvedTrigger);
 
         if (!_session.TryEnqueuePrimaryOutput(trigger.Value, build))
         {
+            PublishGuidancePayload(
+                DecisionGuidanceEventKind.BehaviorUpdated,
+                _session.Presentation.LogicalNowMs,
+                in resolvedTrigger,
+                build,
+                behaviorSnapshot);
+
             if (_session.IsNudgeSuppressedForCurrentFocus)
                 return null;
 
@@ -143,12 +159,63 @@ public sealed class DecisionGuidanceRuntime
             return null;
         }
 
-        _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.OutputEnqueued, _session.Presentation.LogicalNowMs, trigger.Value.ProductIdLow, ResolvedDecisionTrigger.Signature(trigger.Value)));
+        RememberEnqueuedBehavior(build, in resolvedTrigger, behaviorSnapshot);
+        PublishGuidancePayload(
+            DecisionGuidanceEventKind.OutputEnqueued,
+            _session.Presentation.LogicalNowMs,
+            in resolvedTrigger,
+            build,
+            behaviorSnapshot);
         return trigger;
     }
 
     public ResolvedDecisionTrigger? ProcessTriggerInput(in DecisionTriggerInput input) =>
         ProcessTriggerFrame(DecisionTriggerFrame.FromInput(in input));
+
+    private void RememberEnqueuedBehavior(
+        DecisionOutputBuildResult build,
+        in ResolvedDecisionTrigger trigger,
+        GuidanceBehaviorSnapshot? behaviorSnapshot)
+    {
+        _lastEnqueuedTrigger = trigger;
+        _lastEnqueuedBehaviorSnapshot = behaviorSnapshot;
+        _lastEnqueuedBuild = build;
+    }
+
+    private void PublishGuidancePayload(
+        DecisionGuidanceEventKind kind,
+        long logicalNowMs,
+        in ResolvedDecisionTrigger trigger,
+        DecisionOutputBuildResult build,
+        GuidanceBehaviorSnapshot? behaviorSnapshot)
+    {
+        if (behaviorSnapshot == null)
+            return;
+
+        _onEvent?.Invoke(new DecisionGuidanceEvent(
+            kind,
+            logicalNowMs,
+            trigger.ProductIdLow,
+            ResolvedDecisionTrigger.Signature(trigger),
+            behaviorSnapshot,
+            trigger,
+            build));
+    }
+
+    private DecisionGuidanceEvent CreateOutputLifecycleEvent(DecisionGuidanceEventKind kind, long logicalNowMs)
+    {
+        var t = _lastEnqueuedTrigger;
+        var productId = t?.ProductIdLow;
+        var signature = t != null ? ResolvedDecisionTrigger.Signature(t.Value) : null;
+        return new DecisionGuidanceEvent(
+            kind,
+            logicalNowMs,
+            productId,
+            signature,
+            _lastEnqueuedBehaviorSnapshot,
+            t,
+            _lastEnqueuedBuild);
+    }
 
     private void TryAttachBehaviorContext(DecisionOutputBuildResult build, in ResolvedDecisionTrigger trigger)
     {

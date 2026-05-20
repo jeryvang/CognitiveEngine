@@ -57,9 +57,12 @@ public static class DecisionBehaviorContextFactory
     private static BehaviorSignalUsage BuildSignalUsage(
         DecisionBehaviorSessionContext session,
         in ResolvedDecisionTrigger trigger) =>
-        trigger.Kind == DecisionTriggerKind.Compare
-            ? BuildCompareSignalUsage(session, in trigger)
-            : BuildSingleSignalUsage(session, trigger.ProductIdLow);
+        trigger.Kind switch
+        {
+            DecisionTriggerKind.Compare => BuildCompareSignalUsage(session, in trigger),
+            DecisionTriggerKind.CompareReturn => BuildCompareReturnSignalUsage(session, in trigger),
+            _ => BuildSingleSignalUsage(session, trigger.ProductIdLow)
+        };
 
     private static BehaviorSignalUsage BuildSingleSignalUsage(
         DecisionBehaviorSessionContext session,
@@ -100,6 +103,18 @@ public static class DecisionBehaviorContextFactory
             0.25 * compareStrength +
             0.10 * pairRepeatBoost -
             0.05 * swipePressure);
+        return BuildSignalUsageOutput(session, normalizedSignalStrength);
+    }
+
+    private static BehaviorSignalUsage BuildCompareReturnSignalUsage(
+        DecisionBehaviorSessionContext session,
+        in ResolvedDecisionTrigger trigger)
+    {
+        var focused = trigger.ProductIdLow;
+        var partner = trigger.ProductIdHigh;
+        var singleStrength = BuildSingleSignalUsage(session, focused).NormalizedSignalStrength;
+        var pairStrength = session.GetCompareEvidenceNormalizedStrength(focused, partner);
+        var normalizedSignalStrength = Clamp01(0.55 * singleStrength + 0.45 * pairStrength);
         return BuildSignalUsageOutput(session, normalizedSignalStrength);
     }
 
@@ -155,17 +170,31 @@ public static class DecisionBehaviorContextFactory
     private static string ResolveRationale(
         DecisionBehaviorSessionContext session,
         DecisionPreferenceResult preference,
-        in ResolvedDecisionTrigger trigger) =>
-        trigger.Kind == DecisionTriggerKind.Compare
-            ? DecisionBehaviorRationaleBuilder.BuildComparisonWhyThisMattersNow(
+        in ResolvedDecisionTrigger trigger)
+    {
+        if (trigger.Kind == DecisionTriggerKind.Compare)
+        {
+            return DecisionBehaviorRationaleBuilder.BuildComparisonWhyThisMattersNow(
                 session,
                 preference,
                 trigger.ProductIdLow,
-                trigger.ProductIdHigh)
-            : DecisionBehaviorRationaleBuilder.BuildSingleWhyThisMattersNow(
+                trigger.ProductIdHigh);
+        }
+
+        if (trigger.Kind == DecisionTriggerKind.CompareReturn)
+        {
+            return DecisionBehaviorRationaleBuilder.BuildCompareReturnWhyThisMattersNow(
                 session,
                 preference,
-                trigger.ProductIdLow);
+                trigger.ProductIdLow,
+                trigger.ProductIdHigh);
+        }
+
+        return DecisionBehaviorRationaleBuilder.BuildSingleWhyThisMattersNow(
+            session,
+            preference,
+            trigger.ProductIdLow);
+    }
 
     private static DecisionConvergenceSignal ComputeConvergence(DecisionBehaviorSessionContext session)
     {

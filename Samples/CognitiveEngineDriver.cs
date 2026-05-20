@@ -13,13 +13,14 @@ namespace CognitiveEngine.Samples
     {
         [Header("Decision guidance")]
         [SerializeField] private bool logTriggerEmissions;
+        [SerializeField] private bool logBehaviorSnapshots;
 
         private DecisionGuidanceRuntime _runtime;
         private string _currentProductId = "default";
 
         void Awake()
         {
-            _runtime = new DecisionGuidanceRuntime(null, BuildPlaceholderDecisionContent);
+            _runtime = new DecisionGuidanceRuntime(null, BuildPlaceholderDecisionContent, OnDecisionGuidanceEvent);
         }
 
         void Start()
@@ -34,11 +35,14 @@ namespace CognitiveEngine.Samples
             _runtime.Tick(ms);
         }
 
-        /// <summary>Sets the active product for dwell helpers and notifies focus (MRU / revisit).</summary>
+        /// <summary>
+        /// Sets active product, emits guidance when applicable (e.g. revisit), then updates session focus state.
+        /// </summary>
         public void SwitchProduct(string newProductId)
         {
             if (string.IsNullOrEmpty(newProductId)) return;
             _currentProductId = newProductId;
+            EmitTrigger(DecisionTriggerInput.FocusChanged(newProductId));
             _runtime.NotifyProductFocusChanged(newProductId);
         }
 
@@ -59,6 +63,19 @@ namespace CognitiveEngine.Samples
 
         /// <summary>Measurement only: call when compare UI closes.</summary>
         public void NotifyCompareExited() => _runtime.NotifyCompareExited();
+
+        /// <summary>
+        /// Exits compare mode and returns to single view on <paramref name="productId"/>.
+        /// Arms compare-return, emits guidance when applicable, then updates session focus.
+        /// </summary>
+        public void ExitCompareToSingleProduct(string productId)
+        {
+            if (string.IsNullOrEmpty(productId)) return;
+            _currentProductId = productId;
+            _runtime.NotifyCompareExited();
+            EmitTrigger(DecisionTriggerInput.FocusChanged(productId));
+            _runtime.NotifyProductFocusChanged(productId);
+        }
 
         public void NotifyDwellThresholdMetForActiveProduct()
         {
@@ -98,18 +115,56 @@ namespace CognitiveEngine.Samples
                 Debug.Log($"[DecisionGuidance] Emitted {emitted.Value.Kind} {ResolvedDecisionTrigger.Signature(emitted.Value)}");
         }
 
+        void OnDecisionGuidanceEvent(DecisionGuidanceEvent e)
+        {
+            if (e.BehaviorSnapshot == null)
+                return;
+
+            if (e.Kind == DecisionGuidanceEventKind.BehaviorUpdated ||
+                e.Kind == DecisionGuidanceEventKind.OutputEnqueued ||
+                e.Kind == DecisionGuidanceEventKind.OutputBecameVisible)
+            {
+                OnGuidanceBehaviorReady(e.Kind, e.BehaviorSnapshot, e.PrimaryOutput);
+                if (logBehaviorSnapshots)
+                {
+                    var s = e.BehaviorSnapshot;
+                    var catalog = e.PrimaryOutput?.Single?.WhatThisGivesYou
+                                  ?? e.PrimaryOutput?.Comparison?.KeyDifference
+                                  ?? "";
+                    Debug.Log($"[DecisionGuidance] {e.Kind} signal={s.Signal} confidence={s.Confidence:F2} " +
+                              $"disposition={s.Disposition} rationale={s.WhyThisMattersNow} catalog={catalog}");
+                }
+            }
+        }
+
+        /// <summary>Override to bind P7 coach line, disposition, and P6 catalog copy to UI.</summary>
+        protected virtual void OnGuidanceBehaviorReady(
+            DecisionGuidanceEventKind lifecycle,
+            GuidanceBehaviorSnapshot snapshot,
+            DecisionOutputBuildResult? primaryOutput)
+        {
+        }
+
         private static DecisionOutputContent BuildPlaceholderDecisionContent(ResolvedDecisionTrigger trigger)
         {
             switch (trigger.Kind)
             {
                 case DecisionTriggerKind.Compare:
-                    return new DecisionOutputContent
-                    {
-                        KeyDifference =
-                            $"Key difference between {trigger.ProductIdLow} and {trigger.ProductIdHigh} (replace with catalog copy).",
-                        WhichToChooseIf =
-                            "Which to choose if… (replace with catalog copy)."
-                    };
+                case DecisionTriggerKind.CompareReturn:
+                    return trigger.Kind == DecisionTriggerKind.Compare
+                        ? new DecisionOutputContent
+                        {
+                            KeyDifference =
+                                $"Key difference between {trigger.ProductIdLow} and {trigger.ProductIdHigh} (replace with catalog copy).",
+                            WhichToChooseIf =
+                                "Which to choose if… (replace with catalog copy)."
+                        }
+                        : new DecisionOutputContent
+                        {
+                            WhatThisGivesYou =
+                                $"What this gives you for {trigger.ProductIdLow} after comparing with {trigger.ProductIdHigh} (replace with catalog copy).",
+                            WhatYouTradeOff = "What you trade off (replace with catalog copy)."
+                        };
                 default:
                     return new DecisionOutputContent
                     {
