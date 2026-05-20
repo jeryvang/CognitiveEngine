@@ -3,7 +3,7 @@ using System;
 namespace CognitiveEngine.Core.DecisionGuidance;
 
 /// <summary>
-/// Deterministic trigger ordering for P6: Compare &gt; Revisit &gt; Dwell (only one active at a time).
+/// Deterministic trigger ordering for P6: Compare &gt; CompareReturn &gt; Revisit &gt; Dwell (only one active at a time).
 /// </summary>
 public static class DecisionTriggerPriority
 {
@@ -13,6 +13,7 @@ public static class DecisionTriggerPriority
     public static readonly DecisionTriggerKind[] StrictDescendingOrder =
     {
         DecisionTriggerKind.Compare,
+        DecisionTriggerKind.CompareReturn,
         DecisionTriggerKind.Revisit,
         DecisionTriggerKind.Dwell
     };
@@ -24,8 +25,9 @@ public static class DecisionTriggerPriority
         kind switch
         {
             DecisionTriggerKind.Compare => 0,
-            DecisionTriggerKind.Revisit => 1,
-            DecisionTriggerKind.Dwell => 2,
+            DecisionTriggerKind.CompareReturn => 1,
+            DecisionTriggerKind.Revisit => 2,
+            DecisionTriggerKind.Dwell => 3,
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         };
 }

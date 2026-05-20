@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace CognitiveEngine.Core.DecisionGuidance;
 
 /// <summary>
-/// Deterministic P6 trigger resolution: Compare &gt; Revisit &gt; Dwell, at most one emission per
+/// Deterministic P6 trigger resolution: Compare &gt; CompareReturn &gt; Revisit &gt; Dwell, at most one emission per
 /// <see cref="AdvanceFrame"/> / <see cref="Advance"/> call, comparison limited to the latest two
 /// distinct interacted products, and suppression of repeated identical emissions until MRU pair
 /// changes (for compare) or focus product changes (for single-product triggers).
@@ -21,6 +21,12 @@ public sealed class DecisionTriggerResolver
 
     private string? _lastEmittedComparePairKey;
 
+    private bool _compareReturnArmed;
+
+    private string? _compareReturnPairLow;
+
+    private string? _compareReturnPairHigh;
+
     public void Reset()
     {
         _mruDistinct.Clear();
@@ -28,6 +34,7 @@ public sealed class DecisionTriggerResolver
         _leftProducts.Clear();
         _lastEmittedSignature = null;
         _lastEmittedComparePairKey = null;
+        DisarmCompareReturn();
     }
 
     /// <summary>
@@ -40,41 +47,96 @@ public sealed class DecisionTriggerResolver
         _lastEmittedComparePairKey = null;
     }
 
+    /// <summary>
+    /// Arms compare-return eligibility after the host reports compare UI exit. The next focus on either
+    /// product in the pair may emit <see cref="DecisionTriggerKind.CompareReturn"/>.
+    /// </summary>
+    public void ArmCompareReturn(string productIdA, string productIdB)
+    {
+        if (string.IsNullOrWhiteSpace(productIdA))
+            throw new ArgumentException("productIdA is required.", nameof(productIdA));
+        if (string.IsNullOrWhiteSpace(productIdB))
+            throw new ArgumentException("productIdB is required.", nameof(productIdB));
+        if (string.Equals(productIdA, productIdB, StringComparison.Ordinal))
+            throw new ArgumentException("CompareReturn pair requires two distinct product ids.");
+
+        if (string.CompareOrdinal(productIdA, productIdB) < 0)
+        {
+            _compareReturnPairLow = productIdA;
+            _compareReturnPairHigh = productIdB;
+        }
+        else
+        {
+            _compareReturnPairLow = productIdB;
+            _compareReturnPairHigh = productIdA;
+        }
+
+        _compareReturnArmed = true;
+    }
+
+    /// <summary>Uses the latest two MRU products when an explicit compare pair was not recorded.</summary>
+    public bool TryArmCompareReturnFromMru()
+    {
+        if (_mruDistinct.Count < 2)
+            return false;
+
+        ArmCompareReturn(_mruDistinct[0], _mruDistinct[1]);
+        return true;
+    }
+
+    public void DisarmCompareReturn()
+    {
+        _compareReturnArmed = false;
+        _compareReturnPairLow = null;
+        _compareReturnPairHigh = null;
+    }
+
     /// <summary>Single-signal convenience; same as <see cref="AdvanceFrame"/> with one field set.</summary>
     public ResolvedDecisionTrigger? Advance(in DecisionTriggerInput input) =>
         AdvanceFrame(DecisionTriggerFrame.FromInput(in input));
 
     /// <summary>
-    /// Applies optional focus update first (MRU + revisit eligibility), then evaluates Compare,
-    /// then Revisit, then Dwell. At most one trigger is returned.
+    /// Applies optional focus update first (MRU + revisit/compare-return eligibility), then evaluates Compare,
+    /// then CompareReturn, then Revisit, then Dwell. At most one trigger is returned.
     /// </summary>
     public ResolvedDecisionTrigger? AdvanceFrame(in DecisionTriggerFrame frame)
     {
         ResolvedDecisionTrigger? revisitPending = null;
+        ResolvedDecisionTrigger? compareReturnPending = null;
 
         if (!string.IsNullOrWhiteSpace(frame.FocusProductIfChanged))
         {
             UpdateFocusStateOnly(frame.FocusProductIfChanged);
+            compareReturnPending = TryBuildCompareReturnCandidate(frame.FocusProductIfChanged);
             revisitPending = TryBuildRevisitCandidate(frame.FocusProductIfChanged);
         }
 
         if (frame.CompareInvoked)
         {
+            DisarmCompareReturn();
             var compare = BuildCompareCandidate();
             if (compare is { } cmp && !IsDuplicate(cmp))
             {
                 RememberEmitted(cmp);
-                if (revisitPending != null && !string.IsNullOrWhiteSpace(frame.FocusProductIfChanged))
-                    CommitRevisitEligibilityConsumed(frame.FocusProductIfChanged);
+                if (!string.IsNullOrWhiteSpace(frame.FocusProductIfChanged))
+                    CommitFocusEligibilityConsumed(frame.FocusProductIfChanged);
                 return cmp;
             }
+        }
+
+        if (compareReturnPending is { } cr && !IsDuplicate(cr))
+        {
+            RememberEmitted(cr);
+            if (!string.IsNullOrWhiteSpace(frame.FocusProductIfChanged))
+                CommitFocusEligibilityConsumed(frame.FocusProductIfChanged);
+            return cr;
         }
 
         if (revisitPending is { } rev && !IsDuplicate(rev))
         {
             RememberEmitted(rev);
             if (!string.IsNullOrWhiteSpace(frame.FocusProductIfChanged))
-                CommitRevisitEligibilityConsumed(frame.FocusProductIfChanged);
+                CommitFocusEligibilityConsumed(frame.FocusProductIfChanged);
             return rev;
         }
 
@@ -113,9 +175,25 @@ public sealed class DecisionTriggerResolver
         if (_lastEmittedSignature == null)
             return;
         if (_lastEmittedSignature.StartsWith("dwell:", StringComparison.Ordinal) ||
-            _lastEmittedSignature.StartsWith("revisit:", StringComparison.Ordinal))
+            _lastEmittedSignature.StartsWith("revisit:", StringComparison.Ordinal) ||
+            _lastEmittedSignature.StartsWith("compare_return:", StringComparison.Ordinal))
             _lastEmittedSignature = null;
     }
+
+    private ResolvedDecisionTrigger? TryBuildCompareReturnCandidate(string focusedProductId)
+    {
+        if (!_compareReturnArmed || !IsInCompareReturnPair(focusedProductId))
+            return null;
+
+        var partner = string.Equals(focusedProductId, _compareReturnPairLow, StringComparison.Ordinal)
+            ? _compareReturnPairHigh
+            : _compareReturnPairLow;
+        return ResolvedDecisionTrigger.ForCompareReturn(focusedProductId, partner!);
+    }
+
+    private bool IsInCompareReturnPair(string productId) =>
+        string.Equals(productId, _compareReturnPairLow, StringComparison.Ordinal) ||
+        string.Equals(productId, _compareReturnPairHigh, StringComparison.Ordinal);
 
     private ResolvedDecisionTrigger? TryBuildRevisitCandidate(string productId)
     {
@@ -124,9 +202,10 @@ public sealed class DecisionTriggerResolver
         return ResolvedDecisionTrigger.ForSingle(DecisionTriggerKind.Revisit, productId);
     }
 
-    private void CommitRevisitEligibilityConsumed(string productId)
+    private void CommitFocusEligibilityConsumed(string productId)
     {
         _leftProducts.Remove(productId);
+        DisarmCompareReturn();
     }
 
     private ResolvedDecisionTrigger? BuildCompareCandidate()

@@ -69,7 +69,17 @@ public sealed class DecisionGuidanceSessionCoordinator
 
     public void NotifyCompareEntered() => _behaviorSession.RecordCompareEntered();
 
-    public void NotifyCompareExited() => _behaviorSession.RecordCompareExited();
+    public void NotifyCompareExited()
+    {
+        _behaviorSession.RecordCompareExited();
+
+        var productA = _behaviorSession.LastCompareProductIdA;
+        var productB = _behaviorSession.LastCompareProductIdB;
+        if (!string.IsNullOrWhiteSpace(productA) && !string.IsNullOrWhiteSpace(productB))
+            _resolver.ArmCompareReturn(productA, productB);
+        else
+            _resolver.TryArmCompareReturnFromMru();
+    }
 
     public void NotifyDwellThresholdMet(string productId) => _behaviorSession.RecordDwellThresholdMet(productId);
 

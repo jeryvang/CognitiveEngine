@@ -9,9 +9,9 @@ namespace CognitiveEngine.Core.DecisionGuidance;
 public static class DecisionOutputBuilder
 {
     /// <summary>
-    /// Produces a <see cref="SingleProductDecisionOutput"/> for <see cref="DecisionTriggerKind.Dwell"/> and
-    /// <see cref="DecisionTriggerKind.Revisit"/>, or a <see cref="ComparisonDecisionOutput"/> for
-    /// <see cref="DecisionTriggerKind.Compare"/>.
+    /// Produces a <see cref="SingleProductDecisionOutput"/> for <see cref="DecisionTriggerKind.Dwell"/>,
+    /// <see cref="DecisionTriggerKind.Revisit"/>, and <see cref="DecisionTriggerKind.CompareReturn"/>, or a
+    /// <see cref="ComparisonDecisionOutput"/> for <see cref="DecisionTriggerKind.Compare"/>.
     /// </summary>
     public static DecisionOutputBuildResult Build(ResolvedDecisionTrigger trigger, DecisionOutputContent? content = null)
     {
@@ -20,8 +20,8 @@ public static class DecisionOutputBuilder
         return trigger.Kind switch
         {
             DecisionTriggerKind.Compare => DecisionOutputBuildResult.FromComparison(BuildComparison(in trigger, content)),
-            DecisionTriggerKind.Revisit or DecisionTriggerKind.Dwell => DecisionOutputBuildResult.FromSingle(
-                BuildSingle(in trigger, content)),
+            DecisionTriggerKind.Revisit or DecisionTriggerKind.Dwell or DecisionTriggerKind.CompareReturn =>
+                DecisionOutputBuildResult.FromSingle(BuildSingle(in trigger, content)),
             _ => throw new InvalidOperationException("Unexpected DecisionTriggerKind.")
         };
     }
