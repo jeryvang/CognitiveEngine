@@ -103,6 +103,39 @@ public class DecisionGuidanceContractTests
     }
 
     [Fact]
+    public void DecisionGuidanceConfig_RoundTrip_PreservesPartialRationaleTemplateOverrides()
+    {
+        var original = DecisionGuidanceConfig.CreateDefault();
+        original.BehaviorRationaleTemplates = new DecisionBehaviorRationaleTemplates
+        {
+            SingleAmbiguous = "Still deciding? Pick one priority.",
+            CompareLean = "Lean is emerging from your compare."
+        };
+
+        var json = ExportJson.Serialize(original);
+        var back = ExportJson.Deserialize<DecisionGuidanceConfig>(json);
+
+        Assert.NotNull(back.BehaviorRationaleTemplates);
+        Assert.Equal("Still deciding? Pick one priority.", back.BehaviorRationaleTemplates!.SingleAmbiguous);
+        Assert.Equal("Lean is emerging from your compare.", back.BehaviorRationaleTemplates.CompareLean);
+        Assert.True(string.IsNullOrEmpty(back.BehaviorRationaleTemplates.SingleWeak));
+
+        var effective = DecisionBehaviorRationaleTemplates.ResolveEffective(back.BehaviorRationaleTemplates);
+        Assert.Equal("Still deciding? Pick one priority.", effective.SingleAmbiguous);
+        Assert.Equal(
+            DecisionBehaviorRationaleTemplates.CreateDefault().SingleWeak,
+            effective.SingleWeak);
+    }
+
+    [Fact]
+    public void DecisionGuidanceConfig_ValidateOrThrow_RejectsBlankRationaleOverride()
+    {
+        var c = DecisionGuidanceConfig.CreateDefault();
+        c.BehaviorRationaleTemplates = new DecisionBehaviorRationaleTemplates { CompareWeak = "   " };
+        Assert.Throws<ArgumentException>(() => c.ValidateOrThrow());
+    }
+
+    [Fact]
     public void SingleProductDecisionOutput_RoundTrip_PreservesValues()
     {
         var original = new SingleProductDecisionOutput

@@ -18,6 +18,7 @@ public static class DecisionBehaviorContextFactory
     {
         if (session == null) throw new ArgumentNullException(nameof(session));
         var cfg = config ?? DecisionGuidanceConfig.CreateDefault();
+        var rationaleTemplates = DecisionBehaviorRationaleTemplates.ResolveEffective(cfg.BehaviorRationaleTemplates);
 
         var preference = ResolvePreference(session, in trigger);
         var weakSignal = session.IsWeakBehaviorSignal();
@@ -28,7 +29,7 @@ public static class DecisionBehaviorContextFactory
                 "context_v1:weak_signal_fallback");
         }
 
-        var rationale = ResolveRationale(session, preference, in trigger);
+        var rationale = ResolveRationale(session, preference, in trigger, rationaleTemplates);
         var signalUsage = BuildSignalUsage(session, in trigger);
         if (weakSignal)
             signalUsage.NormalizedSignalStrength = Math.Min(signalUsage.NormalizedSignalStrength, WeakSignalMaxNormalizedStrength);
@@ -170,7 +171,8 @@ public static class DecisionBehaviorContextFactory
     private static string ResolveRationale(
         DecisionBehaviorSessionContext session,
         DecisionPreferenceResult preference,
-        in ResolvedDecisionTrigger trigger)
+        in ResolvedDecisionTrigger trigger,
+        DecisionBehaviorRationaleTemplates rationaleTemplates)
     {
         if (trigger.Kind == DecisionTriggerKind.Compare)
         {
@@ -178,7 +180,8 @@ public static class DecisionBehaviorContextFactory
                 session,
                 preference,
                 trigger.ProductIdLow,
-                trigger.ProductIdHigh);
+                trigger.ProductIdHigh,
+                rationaleTemplates);
         }
 
         if (trigger.Kind == DecisionTriggerKind.CompareReturn)
@@ -187,13 +190,15 @@ public static class DecisionBehaviorContextFactory
                 session,
                 preference,
                 trigger.ProductIdLow,
-                trigger.ProductIdHigh);
+                trigger.ProductIdHigh,
+                rationaleTemplates);
         }
 
         return DecisionBehaviorRationaleBuilder.BuildSingleWhyThisMattersNow(
             session,
             preference,
-            trigger.ProductIdLow);
+            trigger.ProductIdLow,
+            rationaleTemplates);
     }
 
     private static DecisionConvergenceSignal ComputeConvergence(DecisionBehaviorSessionContext session)

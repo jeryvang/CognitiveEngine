@@ -109,9 +109,50 @@ public class DecisionBehaviorContextFactoryTests
             "Crocs",
             "Nike");
 
-        Assert.Contains("Crocs", rationale);
-        Assert.Contains("Nike", rationale);
+        Assert.Contains("compared", rationale.ToLowerInvariant());
+        Assert.DoesNotContain("Crocs", rationale);
+        Assert.DoesNotContain("Nike", rationale);
         Assert.DoesNotContain("!", rationale);
         Assert.DoesNotContain("awesome", rationale.ToLowerInvariant());
+        Assert.DoesNotContain("behavior", rationale.ToLowerInvariant());
+    }
+
+    [Fact]
+    public void Create_UsesConfigurableRationaleTemplatesFromConfig()
+    {
+        const string customCompareRepeated = "Custom: you keep comparing these two.";
+        var cfg = DecisionGuidanceConfig.CreateDefault();
+        cfg.BehaviorRationaleTemplates = new DecisionBehaviorRationaleTemplates
+        {
+            CompareRepeatedPair = customCompareRepeated
+        };
+        cfg.ValidateOrThrow();
+
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("a");
+        session.RecordFocusChanged("b");
+        session.RecordCompareInvoked("a", "b");
+        session.RecordCompareInvoked("a", "b");
+        session.RecordDwellThresholdMet("a");
+
+        var trigger = ResolvedDecisionTrigger.ForCompare("a", "b");
+        var ctx = DecisionBehaviorContextFactory.Create(session, in trigger, cfg);
+
+        Assert.Equal(customCompareRepeated, ctx.WhyThisMattersNow);
+    }
+
+    [Fact]
+    public void RationaleBuilder_AppliesPartialTemplateOverrides()
+    {
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("x");
+
+        var rationale = DecisionBehaviorRationaleBuilder.BuildSingleWhyThisMattersNow(
+            session,
+            DecisionPreferenceResult.NoClearLean(0.5, "test"),
+            "x",
+            new DecisionBehaviorRationaleTemplates { SingleWeak = "Host: keep browsing." });
+
+        Assert.Equal("Host: keep browsing.", rationale);
     }
 }

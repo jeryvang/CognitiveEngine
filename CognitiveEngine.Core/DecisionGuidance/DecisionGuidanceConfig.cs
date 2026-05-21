@@ -84,6 +84,12 @@ public sealed class DecisionGuidanceConfig
     [JsonProperty("neutral_max_convergence", Order = 13, Required = Required.Always)]
     public double NeutralMaxConvergence { get; set; } = DefaultNeutralMaxConvergence;
 
+    /// <summary>
+    /// Optional overrides for P7 <c>why_this_matters_now</c> template copy. Omitted keys use engine defaults.
+    /// </summary>
+    [JsonProperty("behavior_rationale_templates", Order = 14, DefaultValueHandling = DefaultValueHandling.Ignore)]
+    public DecisionBehaviorRationaleTemplates? BehaviorRationaleTemplates { get; set; }
+
     public static DecisionGuidanceConfig CreateDefault() => new();
 
     public void ValidateOrThrow()
@@ -113,6 +119,8 @@ public sealed class DecisionGuidanceConfig
 
         if (string.IsNullOrWhiteSpace(SchemaVersion))
             throw new ArgumentException("schema_version is required.", nameof(SchemaVersion));
+
+        BehaviorRationaleTemplates?.ValidateOrThrow();
     }
 
     private static void ValidateProbability(string name, double value)
