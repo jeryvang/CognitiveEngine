@@ -155,4 +155,273 @@ public class DecisionBehaviorContextFactoryTests
 
         Assert.Equal("Host: keep browsing.", rationale);
     }
+
+    [Fact]
+    public void SingleRationale_DoesNotUseDwellLead_OnSingleDwellEvent_AtDefaultThreshold()
+    {
+        var session = BuildSingleLeanSessionWithDwells("p", dwellCount: 1);
+        var lean = DecisionPreferenceResult.LeanSingle("p", 0.7, "test_lean");
+
+        var rationale = DecisionBehaviorRationaleBuilder.BuildSingleWhyThisMattersNow(
+            session,
+            lean,
+            "p");
+
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        Assert.NotEqual(defaults.SingleDwellLead, rationale);
+    }
+
+    [Fact]
+    public void SingleRationale_UsesDwellLead_WhenDwellCountMeetsThreshold()
+    {
+        var session = BuildSingleLeanSessionWithDwells("p", dwellCount: 2);
+        var lean = DecisionPreferenceResult.LeanSingle("p", 0.7, "test_lean");
+
+        var rationale = DecisionBehaviorRationaleBuilder.BuildSingleWhyThisMattersNow(
+            session,
+            lean,
+            "p");
+
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        Assert.Equal(defaults.SingleDwellLead, rationale);
+    }
+
+    [Fact]
+    public void SingleRationale_RespectsConfigMinDwellCountOverride()
+    {
+        var session = BuildSingleLeanSessionWithDwells("p", dwellCount: 2);
+        var lean = DecisionPreferenceResult.LeanSingle("p", 0.7, "test_lean");
+
+        var rationale = DecisionBehaviorRationaleBuilder.BuildSingleWhyThisMattersNow(
+            session,
+            lean,
+            "p",
+            templates: null,
+            minDwellCountForRationale: 3);
+
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        Assert.NotEqual(defaults.SingleDwellLead, rationale);
+    }
+
+    [Fact]
+    public void Factory_RoutesMinDwellCountFromConfig()
+    {
+        var session = BuildSingleLeanSessionWithDwells("p", dwellCount: 2);
+        var trigger = ResolvedDecisionTrigger.ForSingle(DecisionTriggerKind.Dwell, "p");
+        var cfg = DecisionGuidanceConfig.CreateDefault();
+        cfg.MinDwellCountForRationale = 5;
+
+        var ctx = DecisionBehaviorContextFactory.Create(session, in trigger, cfg);
+
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        Assert.NotEqual(defaults.SingleDwellLead, ctx.WhyThisMattersNow);
+    }
+
+    private static DecisionBehaviorSessionContext BuildSingleLeanSessionWithDwells(string productId, int dwellCount)
+    {
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged(productId);
+        for (int i = 0; i < dwellCount; i++)
+            session.RecordDwellThresholdMet(productId);
+        session.RecordFocusChanged("other");
+        session.RecordFocusChanged(productId);
+        return session;
+    }
+
+    [Fact]
+    public void Factory_DuringActiveCompare_RoutesSingleTriggerToCompareRationale()
+    {
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("a");
+        session.RecordFocusChanged("b");
+        session.RecordCompareInvoked("a", "b");
+        session.RecordCompareEntered();
+        session.RecordDwellThresholdMet("a");
+        session.RecordDwellThresholdMet("a");
+
+        var trigger = ResolvedDecisionTrigger.ForSingle(DecisionTriggerKind.Dwell, "a");
+        var ctx = DecisionBehaviorContextFactory.Create(session, in trigger, DecisionGuidanceConfig.CreateDefault());
+
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        Assert.NotEqual(defaults.SingleDwellLead, ctx.WhyThisMattersNow);
+        Assert.Contains(
+            ctx.WhyThisMattersNow,
+            new[] { defaults.CompareWeak, defaults.CompareRepeatedPair, defaults.CompareLean, defaults.CompareFallback });
+    }
+
+    [Fact]
+    public void Factory_DuringActiveCompare_WithRepeatedPair_UsesCompareRepeatedTemplate()
+    {
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("a");
+        session.RecordFocusChanged("b");
+        session.RecordCompareInvoked("a", "b");
+        session.RecordCompareInvoked("a", "b");
+        session.RecordCompareEntered();
+        session.RecordDwellThresholdMet("a");
+        session.RecordDwellThresholdMet("a");
+
+        var trigger = ResolvedDecisionTrigger.ForSingle(DecisionTriggerKind.Dwell, "a");
+        var ctx = DecisionBehaviorContextFactory.Create(session, in trigger, DecisionGuidanceConfig.CreateDefault());
+
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        Assert.Equal(defaults.CompareRepeatedPair, ctx.WhyThisMattersNow);
+    }
+
+    [Fact]
+    public void Factory_CompareNotActive_StillUsesSingleRationale()
+    {
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("a");
+        session.RecordFocusChanged("b");
+        session.RecordCompareInvoked("a", "b");
+        session.RecordCompareEntered();
+        session.RecordCompareExited();
+        session.RecordDwellThresholdMet("a");
+        session.RecordDwellThresholdMet("a");
+        session.RecordFocusChanged("a");
+
+        var trigger = ResolvedDecisionTrigger.ForSingle(DecisionTriggerKind.Dwell, "a");
+        var ctx = DecisionBehaviorContextFactory.Create(session, in trigger, DecisionGuidanceConfig.CreateDefault());
+
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        Assert.NotEqual(defaults.CompareFallback, ctx.WhyThisMattersNow);
+        Assert.NotEqual(defaults.CompareRepeatedPair, ctx.WhyThisMattersNow);
+    }
+
+    [Fact]
+    public void CompareReturnRationale_DoesNotUseLeanFocused_OnPassiveDefaultLanding()
+    {
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("Gucci");
+        session.RecordDwellThresholdMet("Gucci");
+        session.RecordSelect("Gucci");
+        session.RecordFocusChanged("LV");
+        session.RecordCompareInvoked("Gucci", "LV");
+        session.RecordCompareEntered();
+        session.RecordCompareExited();
+        session.RecordFocusChanged("Gucci");
+
+        Assert.Equal(1, session.GetRevisitCount("Gucci"));
+
+        var leanFocused = DecisionPreferenceResult.LeanSingle("Gucci", 0.7, "test_lean");
+        var rationale = DecisionBehaviorRationaleBuilder.BuildCompareReturnWhyThisMattersNow(
+            session,
+            leanFocused,
+            "Gucci",
+            "LV");
+
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        Assert.NotEqual(defaults.CompareReturnLeanFocused, rationale);
+        Assert.Equal(defaults.CompareReturnFallback, rationale);
+    }
+
+    [Fact]
+    public void CompareReturnRationale_UsesLeanFocused_WhenRevisitEvidenceMeetsThreshold()
+    {
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("Gucci");
+        session.RecordDwellThresholdMet("Gucci");
+        session.RecordSelect("Gucci");
+        session.RecordFocusChanged("LV");
+        session.RecordFocusChanged("Gucci");
+        session.RecordFocusChanged("LV");
+        session.RecordCompareInvoked("Gucci", "LV");
+        session.RecordCompareEntered();
+        session.RecordCompareExited();
+        session.RecordFocusChanged("Gucci");
+
+        Assert.True(session.GetRevisitCount("Gucci") >= 2);
+
+        var leanFocused = DecisionPreferenceResult.LeanSingle("Gucci", 0.7, "test_lean");
+        var rationale = DecisionBehaviorRationaleBuilder.BuildCompareReturnWhyThisMattersNow(
+            session,
+            leanFocused,
+            "Gucci",
+            "LV");
+
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        Assert.Equal(defaults.CompareReturnLeanFocused, rationale);
+    }
+
+    [Fact]
+    public void CompareReturnRationale_RespectsConfigMinRevisitOverride()
+    {
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("Gucci");
+        session.RecordDwellThresholdMet("Gucci");
+        session.RecordSelect("Gucci");
+        session.RecordFocusChanged("LV");
+        session.RecordFocusChanged("Gucci");
+        session.RecordFocusChanged("LV");
+        session.RecordCompareInvoked("Gucci", "LV");
+        session.RecordCompareEntered();
+        session.RecordCompareExited();
+        session.RecordFocusChanged("Gucci");
+
+        var leanFocused = DecisionPreferenceResult.LeanSingle("Gucci", 0.7, "test_lean");
+        var rationale = DecisionBehaviorRationaleBuilder.BuildCompareReturnWhyThisMattersNow(
+            session,
+            leanFocused,
+            "Gucci",
+            "LV",
+            templates: null,
+            minRevisitCountForLean: 5);
+
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        Assert.NotEqual(defaults.CompareReturnLeanFocused, rationale);
+    }
+
+    [Fact]
+    public void Factory_RoutesMinRevisitCountForCompareReturnLeanFromConfig()
+    {
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("Gucci");
+        session.RecordDwellThresholdMet("Gucci");
+        session.RecordSelect("Gucci");
+        session.RecordFocusChanged("LV");
+        session.RecordFocusChanged("Gucci");
+        session.RecordFocusChanged("LV");
+        session.RecordCompareInvoked("Gucci", "LV");
+        session.RecordCompareEntered();
+        session.RecordCompareExited();
+        session.RecordFocusChanged("Gucci");
+
+        var cfg = DecisionGuidanceConfig.CreateDefault();
+        cfg.MinRevisitCountForCompareReturnLean = 10;
+
+        var trigger = ResolvedDecisionTrigger.ForCompareReturn("Gucci", "LV");
+        var ctx = DecisionBehaviorContextFactory.Create(session, in trigger, cfg);
+
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        Assert.NotEqual(defaults.CompareReturnLeanFocused, ctx.WhyThisMattersNow);
+    }
+
+    [Fact]
+    public void CompareRationale_UsesCompareLean_WhenLeaningAndNotAmbiguous()
+    {
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("a");
+        session.RecordDwellThresholdMet("a");
+        session.RecordSelect("a");
+        session.RecordFocusChanged("b");
+        session.RecordCompareInvoked("a", "b");
+
+        var leanPreference = DecisionPreferenceResult.LeanComparison(
+            PreferenceLean.ProductA,
+            "a",
+            "b",
+            0.75,
+            "test_lean");
+
+        var rationale = DecisionBehaviorRationaleBuilder.BuildComparisonWhyThisMattersNow(
+            session,
+            leanPreference,
+            "a",
+            "b");
+
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        Assert.Equal(defaults.CompareLean, rationale);
+        Assert.NotEqual(defaults.CompareFallback, rationale);
+    }
 }

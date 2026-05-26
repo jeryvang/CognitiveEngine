@@ -28,6 +28,10 @@ public sealed class DecisionGuidanceConfig
     public const double DefaultNeutralMaxConfidence = 0.40;
     public const double DefaultNeutralMaxConvergence = 0.45;
 
+    public const int DefaultMinDwellCountForRationale = 2;
+
+    public const int DefaultMinRevisitCountForCompareReturnLean = 2;
+
     [JsonProperty("schema_version", Order = 1, Required = Required.Always)]
     public string SchemaVersion { get; set; } = DecisionGuidanceSchema.ConfigVersion;
 
@@ -85,9 +89,27 @@ public sealed class DecisionGuidanceConfig
     public double NeutralMaxConvergence { get; set; } = DefaultNeutralMaxConvergence;
 
     /// <summary>
+    /// Minimum per-product dwell events required before <c>single_dwell_lead</c> rationale is selected.
+    /// Prevents "spent more time on this option" from appearing on the first focus/dwell.
+    /// </summary>
+    [JsonProperty("min_dwell_count_for_rationale", Order = 14, DefaultValueHandling = DefaultValueHandling.Ignore)]
+    [DefaultValue(DefaultMinDwellCountForRationale)]
+    public int MinDwellCountForRationale { get; set; } = DefaultMinDwellCountForRationale;
+
+    /// <summary>
+    /// Minimum revisit count on the focused product required for the
+    /// <c>compare_return_lean_focused</c> ("came back—stronger fit") rationale.
+    /// Prevents passive default-navigation after compare exit from being narrated as an intentional return.
+    /// Below this threshold, compare-return falls through to softer fallback copy.
+    /// </summary>
+    [JsonProperty("min_revisit_count_for_compare_return_lean", Order = 15, DefaultValueHandling = DefaultValueHandling.Ignore)]
+    [DefaultValue(DefaultMinRevisitCountForCompareReturnLean)]
+    public int MinRevisitCountForCompareReturnLean { get; set; } = DefaultMinRevisitCountForCompareReturnLean;
+
+    /// <summary>
     /// Optional overrides for P7 <c>why_this_matters_now</c> template copy. Omitted keys use engine defaults.
     /// </summary>
-    [JsonProperty("behavior_rationale_templates", Order = 14, DefaultValueHandling = DefaultValueHandling.Ignore)]
+    [JsonProperty("behavior_rationale_templates", Order = 16, DefaultValueHandling = DefaultValueHandling.Ignore)]
     public DecisionBehaviorRationaleTemplates? BehaviorRationaleTemplates { get; set; }
 
     public static DecisionGuidanceConfig CreateDefault() => new();
@@ -107,6 +129,16 @@ public sealed class DecisionGuidanceConfig
         NonNegative(nameof(SustainedStayAfterOutputMs), SustainedStayAfterOutputMs);
         NonNegative(nameof(PanelCloseCooldownMs), PanelCloseCooldownMs);
         NonNegative(nameof(ExpandDuplicateTapIgnoreMs), ExpandDuplicateTapIgnoreMs);
+        if (MinDwellCountForRationale < 1)
+            throw new ArgumentOutOfRangeException(
+                nameof(MinDwellCountForRationale),
+                MinDwellCountForRationale,
+                $"{nameof(MinDwellCountForRationale)} must be >= 1.");
+        if (MinRevisitCountForCompareReturnLean < 1)
+            throw new ArgumentOutOfRangeException(
+                nameof(MinRevisitCountForCompareReturnLean),
+                MinRevisitCountForCompareReturnLean,
+                $"{nameof(MinRevisitCountForCompareReturnLean)} must be >= 1.");
         ValidateProbability(nameof(StrongGuidanceMinConfidence), StrongGuidanceMinConfidence);
         ValidateProbability(nameof(StrongGuidanceMinConvergence), StrongGuidanceMinConvergence);
         ValidateProbability(nameof(NeutralMaxConfidence), NeutralMaxConfidence);

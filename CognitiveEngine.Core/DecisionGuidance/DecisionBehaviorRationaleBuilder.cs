@@ -12,12 +12,18 @@ public static class DecisionBehaviorRationaleBuilder
         DecisionBehaviorSessionContext session,
         DecisionPreferenceResult preference,
         string productId,
-        DecisionBehaviorRationaleTemplates? templates = null)
+        DecisionBehaviorRationaleTemplates? templates = null,
+        int minDwellCountForRationale = DecisionGuidanceConfig.DefaultMinDwellCountForRationale)
     {
         if (session == null) throw new ArgumentNullException(nameof(session));
         if (preference == null) throw new ArgumentNullException(nameof(preference));
         if (string.IsNullOrWhiteSpace(productId))
             throw new ArgumentException("productId is required.", nameof(productId));
+        if (minDwellCountForRationale < 1)
+            throw new ArgumentOutOfRangeException(
+                nameof(minDwellCountForRationale),
+                minDwellCountForRationale,
+                $"{nameof(minDwellCountForRationale)} must be >= 1.");
 
         var t = DecisionBehaviorRationaleTemplates.ResolveEffective(templates);
 
@@ -31,7 +37,7 @@ public static class DecisionBehaviorRationaleBuilder
                 return t.SingleRevisitAndSelectionLead;
             if (session.GetSelectionCount(productId) > 0)
                 return t.SingleSelectionLead;
-            if (session.GetDwellCount(productId) > 0)
+            if (session.GetDwellCount(productId) >= minDwellCountForRationale)
                 return t.SingleDwellLead;
             if (session.IsRepeatedFocus(productId))
                 return t.SingleRepeatedFocus;
@@ -48,7 +54,8 @@ public static class DecisionBehaviorRationaleBuilder
         DecisionPreferenceResult preference,
         string focusedProductId,
         string comparisonPartnerProductId,
-        DecisionBehaviorRationaleTemplates? templates = null)
+        DecisionBehaviorRationaleTemplates? templates = null,
+        int minRevisitCountForLean = DecisionGuidanceConfig.DefaultMinRevisitCountForCompareReturnLean)
     {
         if (session == null) throw new ArgumentNullException(nameof(session));
         if (preference == null) throw new ArgumentNullException(nameof(preference));
@@ -56,6 +63,11 @@ public static class DecisionBehaviorRationaleBuilder
             throw new ArgumentException("focusedProductId is required.", nameof(focusedProductId));
         if (string.IsNullOrWhiteSpace(comparisonPartnerProductId))
             throw new ArgumentException("comparisonPartnerProductId is required.", nameof(comparisonPartnerProductId));
+        if (minRevisitCountForLean < 1)
+            throw new ArgumentOutOfRangeException(
+                nameof(minRevisitCountForLean),
+                minRevisitCountForLean,
+                $"{nameof(minRevisitCountForLean)} must be >= 1.");
 
         var t = DecisionBehaviorRationaleTemplates.ResolveEffective(templates);
 
@@ -63,7 +75,8 @@ public static class DecisionBehaviorRationaleBuilder
             return t.CompareReturnWeak;
 
         if (preference.Kind == PreferenceResultKind.LeanSingleProduct &&
-            string.Equals(preference.PreferredProductId, focusedProductId, StringComparison.Ordinal))
+            string.Equals(preference.PreferredProductId, focusedProductId, StringComparison.Ordinal) &&
+            session.GetRevisitCount(focusedProductId) >= minRevisitCountForLean)
             return t.CompareReturnLeanFocused;
 
         if (preference.IsAmbiguous)
@@ -97,7 +110,7 @@ public static class DecisionBehaviorRationaleBuilder
         if (pairCount > 1)
             return t.CompareRepeatedPair;
 
-        if (preference.Kind == PreferenceResultKind.LeanComparison && preference.IsAmbiguous)
+        if (preference.Kind == PreferenceResultKind.LeanComparison && !preference.IsAmbiguous)
             return t.CompareLean;
 
         return t.CompareFallback;

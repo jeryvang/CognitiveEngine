@@ -29,7 +29,7 @@ public static class DecisionBehaviorContextFactory
                 "context_v1:weak_signal_fallback");
         }
 
-        var rationale = ResolveRationale(session, preference, in trigger, rationaleTemplates);
+        var rationale = ResolveRationale(session, preference, in trigger, rationaleTemplates, cfg);
         var signalUsage = BuildSignalUsage(session, in trigger);
         if (weakSignal)
             signalUsage.NormalizedSignalStrength = Math.Min(signalUsage.NormalizedSignalStrength, WeakSignalMaxNormalizedStrength);
@@ -172,7 +172,8 @@ public static class DecisionBehaviorContextFactory
         DecisionBehaviorSessionContext session,
         DecisionPreferenceResult preference,
         in ResolvedDecisionTrigger trigger,
-        DecisionBehaviorRationaleTemplates rationaleTemplates)
+        DecisionBehaviorRationaleTemplates rationaleTemplates,
+        DecisionGuidanceConfig cfg)
     {
         if (trigger.Kind == DecisionTriggerKind.Compare)
         {
@@ -191,14 +192,50 @@ public static class DecisionBehaviorContextFactory
                 preference,
                 trigger.ProductIdLow,
                 trigger.ProductIdHigh,
-                rationaleTemplates);
+                rationaleTemplates,
+                cfg.MinRevisitCountForCompareReturnLean);
         }
+
+        if (TryResolveActiveCompareRationale(session, rationaleTemplates, out var compareRationale))
+            return compareRationale;
 
         return DecisionBehaviorRationaleBuilder.BuildSingleWhyThisMattersNow(
             session,
             preference,
             trigger.ProductIdLow,
+            rationaleTemplates,
+            cfg.MinDwellCountForRationale);
+    }
+
+    /// <summary>
+    /// While compare UI is active, single triggers (Dwell/Revisit) on either compared product
+    /// should not surface single-product rationale (e.g. "spent more time on this option").
+    /// Routes through the compare rationale path using the known active pair instead.
+    /// </summary>
+    private static bool TryResolveActiveCompareRationale(
+        DecisionBehaviorSessionContext session,
+        DecisionBehaviorRationaleTemplates rationaleTemplates,
+        out string rationale)
+    {
+        rationale = "";
+        if (!session.IsCompareActive)
+            return false;
+
+        var pairA = session.LastCompareProductIdA;
+        var pairB = session.LastCompareProductIdB;
+        if (string.IsNullOrWhiteSpace(pairA) || string.IsNullOrWhiteSpace(pairB))
+            return false;
+        if (string.Equals(pairA, pairB, StringComparison.Ordinal))
+            return false;
+
+        var comparePreference = DecisionPreferenceModel.EvaluateComparison(session, pairA, pairB);
+        rationale = DecisionBehaviorRationaleBuilder.BuildComparisonWhyThisMattersNow(
+            session,
+            comparePreference,
+            pairA,
+            pairB,
             rationaleTemplates);
+        return true;
     }
 
     private static DecisionConvergenceSignal ComputeConvergence(DecisionBehaviorSessionContext session)
