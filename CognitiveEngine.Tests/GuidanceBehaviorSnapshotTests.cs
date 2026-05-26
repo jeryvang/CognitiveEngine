@@ -131,4 +131,46 @@ public class GuidanceBehaviorSnapshotTests
         Assert.NotNull(updated.PrimaryOutput);
         Assert.Equal("busy-copy", updated.PrimaryOutput!.Single!.WhatThisGivesYou);
     }
+
+    [Fact]
+    public void Snapshot_ExposesBehaviorKeyAndPhrase_AlongsideSentence()
+    {
+        var events = new List<DecisionGuidanceEvent>();
+        var rt = new DecisionGuidanceRuntime(FastConfig(), _ => new DecisionOutputContent
+        {
+            WhatThisGivesYou = "g",
+            WhatYouTradeOff = "t"
+        }, events.Add);
+
+        rt.NotifyProductFocusChanged("solo");
+        rt.ProcessTriggerInput(DecisionTriggerInput.DwellThresholdMet("solo"));
+
+        var enqueued = events.Single(e => e.Kind == DecisionGuidanceEventKind.OutputEnqueued);
+        var snap = enqueued.BehaviorSnapshot;
+        Assert.NotNull(snap);
+        Assert.False(string.IsNullOrWhiteSpace(snap!.BehaviorKey));
+        Assert.False(string.IsNullOrWhiteSpace(snap.BehaviorPhrase));
+        Assert.False(string.IsNullOrWhiteSpace(snap.WhyThisMattersNow));
+        Assert.Equal(DecisionBehaviorRationaleKeys.SingleWeak, snap.BehaviorKey);
+    }
+
+    [Fact]
+    public void Snapshot_BehaviorPhrase_IsShorterThanFullSentence()
+    {
+        var events = new List<DecisionGuidanceEvent>();
+        var rt = new DecisionGuidanceRuntime(FastConfig(), _ => new DecisionOutputContent
+        {
+            WhatThisGivesYou = "g",
+            WhatYouTradeOff = "t"
+        }, events.Add);
+
+        rt.NotifyProductFocusChanged("a");
+        rt.NotifyProductFocusChanged("b");
+        rt.ProcessTriggerInput(DecisionTriggerInput.CompareInvoked());
+        rt.ProcessTriggerInput(DecisionTriggerInput.CompareInvoked());
+
+        var enqueued = events.Last(e => e.Kind == DecisionGuidanceEventKind.OutputEnqueued);
+        var snap = enqueued.BehaviorSnapshot!;
+        Assert.True(snap.BehaviorPhrase.Length < snap.WhyThisMattersNow.Length);
+    }
 }

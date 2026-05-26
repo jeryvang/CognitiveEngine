@@ -24,6 +24,18 @@ public sealed class GuidanceBehaviorSnapshot
 
     public string WhyThisMattersNow { get; set; } = "";
 
+    /// <summary>
+    /// Stable, snake_case key for the rationale branch (see <see cref="DecisionBehaviorRationaleKeys"/>).
+    /// Hosts use this for localization tables, LLM input, or analytics.
+    /// </summary>
+    public string BehaviorKey { get; set; } = "";
+
+    /// <summary>
+    /// Short behavior prefix (e.g. "You're still exploring."). Hosts concatenate this with
+    /// catalog framing to compose the final AI Insights line.
+    /// </summary>
+    public string BehaviorPhrase { get; set; } = "";
+
     public static string SignalFromTriggerKind(DecisionTriggerKind kind) =>
         kind switch
         {
@@ -56,7 +68,9 @@ public sealed class GuidanceBehaviorSnapshot
             Confidence = ctx.PreferenceIndication.Confidence,
             IsAmbiguous = ctx.PreferenceIndication.IsAmbiguous,
             Disposition = ctx.GuidanceDisposition,
-            WhyThisMattersNow = ctx.WhyThisMattersNow
+            WhyThisMattersNow = ctx.WhyThisMattersNow,
+            BehaviorKey = ctx.BehaviorKey,
+            BehaviorPhrase = ctx.BehaviorPhrase
         };
     }
 }

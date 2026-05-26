@@ -398,6 +398,129 @@ public class DecisionBehaviorContextFactoryTests
     }
 
     [Fact]
+    public void RationaleBuilder_ReturnsKeyPhraseAndSentence_ForSingleWeak()
+    {
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("x");
+        var preference = DecisionPreferenceResult.NoClearLean(0.0, "test_weak");
+
+        var selection = DecisionBehaviorRationaleBuilder.BuildSingleRationale(
+            session, preference, "x");
+
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        Assert.Equal(DecisionBehaviorRationaleKeys.SingleWeak, selection.Key);
+        Assert.Equal(defaults.SingleWeakPhrase, selection.Phrase);
+        Assert.Equal(defaults.SingleWeak, selection.Sentence);
+    }
+
+    [Fact]
+    public void RationaleBuilder_ReturnsCompareLeanSelection_WhenLeaningAndNotAmbiguous()
+    {
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("a");
+        session.RecordDwellThresholdMet("a");
+        session.RecordSelect("a");
+        session.RecordFocusChanged("b");
+        session.RecordCompareInvoked("a", "b");
+
+        var leanPreference = DecisionPreferenceResult.LeanComparison(
+            PreferenceLean.ProductA, "a", "b", 0.75, "test_lean");
+
+        var selection = DecisionBehaviorRationaleBuilder.BuildComparisonRationale(
+            session, leanPreference, "a", "b");
+
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        Assert.Equal(DecisionBehaviorRationaleKeys.CompareLean, selection.Key);
+        Assert.Equal(defaults.CompareLeanPhrase, selection.Phrase);
+        Assert.Equal(defaults.CompareLean, selection.Sentence);
+    }
+
+    [Fact]
+    public void Factory_PopulatesBehaviorKeyAndPhrase_OnContext()
+    {
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("a");
+        session.RecordFocusChanged("b");
+        session.RecordCompareInvoked("a", "b");
+        session.RecordCompareInvoked("a", "b");
+
+        var trigger = ResolvedDecisionTrigger.ForCompare("a", "b");
+        var ctx = DecisionBehaviorContextFactory.Create(session, in trigger, DecisionGuidanceConfig.CreateDefault());
+
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        Assert.Equal(DecisionBehaviorRationaleKeys.CompareRepeatedPair, ctx.BehaviorKey);
+        Assert.Equal(defaults.CompareRepeatedPairPhrase, ctx.BehaviorPhrase);
+        Assert.Equal(defaults.CompareRepeatedPair, ctx.WhyThisMattersNow);
+    }
+
+    [Fact]
+    public void Factory_PhraseAndSentence_AreConsistentWithKey_ForAllBranches()
+    {
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("a");
+        var trigger = ResolvedDecisionTrigger.ForSingle(DecisionTriggerKind.Dwell, "a");
+        var ctx = DecisionBehaviorContextFactory.Create(session, in trigger, DecisionGuidanceConfig.CreateDefault());
+
+        Assert.False(string.IsNullOrWhiteSpace(ctx.BehaviorKey));
+        Assert.False(string.IsNullOrWhiteSpace(ctx.BehaviorPhrase));
+        Assert.False(string.IsNullOrWhiteSpace(ctx.WhyThisMattersNow));
+        Assert.Equal(DecisionBehaviorRationaleKeys.SingleWeak, ctx.BehaviorKey);
+        Assert.Equal(defaults.SingleWeakPhrase, ctx.BehaviorPhrase);
+        Assert.Equal(defaults.SingleWeak, ctx.WhyThisMattersNow);
+    }
+
+    [Fact]
+    public void Templates_OverrideBothSentenceAndPhrase_IndependentlyResolved()
+    {
+        var cfg = DecisionGuidanceConfig.CreateDefault();
+        cfg.BehaviorRationaleTemplates = new DecisionBehaviorRationaleTemplates
+        {
+            CompareRepeatedPair = "Custom full sentence.",
+            CompareRepeatedPairPhrase = "Custom phrase."
+        };
+        cfg.ValidateOrThrow();
+
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("a");
+        session.RecordFocusChanged("b");
+        session.RecordCompareInvoked("a", "b");
+        session.RecordCompareInvoked("a", "b");
+
+        var trigger = ResolvedDecisionTrigger.ForCompare("a", "b");
+        var ctx = DecisionBehaviorContextFactory.Create(session, in trigger, cfg);
+
+        Assert.Equal("Custom full sentence.", ctx.WhyThisMattersNow);
+        Assert.Equal("Custom phrase.", ctx.BehaviorPhrase);
+        Assert.Equal(DecisionBehaviorRationaleKeys.CompareRepeatedPair, ctx.BehaviorKey);
+    }
+
+    [Fact]
+    public void Templates_PartialOverride_PhraseOnly_KeepsSentenceDefault()
+    {
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        var cfg = DecisionGuidanceConfig.CreateDefault();
+        cfg.BehaviorRationaleTemplates = new DecisionBehaviorRationaleTemplates
+        {
+            SingleAmbiguousPhrase = "Still weighing."
+        };
+
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("a");
+        session.RecordFocusChanged("b");
+        session.RecordFocusChanged("c");
+        session.RecordDwellThresholdMet("a");
+        session.RecordDwellThresholdMet("b");
+
+        var trigger = ResolvedDecisionTrigger.ForSingle(DecisionTriggerKind.Dwell, "c");
+        var ctx = DecisionBehaviorContextFactory.Create(session, in trigger, cfg);
+
+        Assert.Equal(DecisionBehaviorRationaleKeys.SingleAmbiguous, ctx.BehaviorKey);
+        Assert.Equal("Still weighing.", ctx.BehaviorPhrase);
+        Assert.Equal(defaults.SingleAmbiguous, ctx.WhyThisMattersNow);
+    }
+
+    [Fact]
     public void CompareRationale_UsesCompareLean_WhenLeaningAndNotAmbiguous()
     {
         var session = new DecisionBehaviorSessionContext();

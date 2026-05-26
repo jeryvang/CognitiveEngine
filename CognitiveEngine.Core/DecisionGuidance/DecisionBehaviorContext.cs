@@ -35,6 +35,22 @@ public sealed class DecisionBehaviorContext
 
     [JsonProperty("rationale_policy", Order = 9, Required = Required.Always)]
     public string RationalePolicy { get; set; } = "repeat_guard_aligned_v1";
+
+    /// <summary>
+    /// Stable, snake_case key for the rationale branch selected (see
+    /// <see cref="DecisionBehaviorRationaleKeys"/>). Hosts use it for localization tables,
+    /// LLM input, or analytics. Optional in JSON — omitted when empty for backward compatibility.
+    /// </summary>
+    [JsonProperty("behavior_key", Order = 10, DefaultValueHandling = DefaultValueHandling.Ignore)]
+    public string BehaviorKey { get; set; } = "";
+
+    /// <summary>
+    /// Short behavior prefix (e.g. "You're still exploring.") that the host concatenates with
+    /// catalog framing to compose the final AI Insights line. Optional in JSON — omitted when
+    /// empty for backward compatibility.
+    /// </summary>
+    [JsonProperty("behavior_phrase", Order = 11, DefaultValueHandling = DefaultValueHandling.Ignore)]
+    public string BehaviorPhrase { get; set; } = "";
 }
 
 public sealed class BehaviorSignalUsage

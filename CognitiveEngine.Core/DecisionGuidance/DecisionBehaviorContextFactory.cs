@@ -50,7 +50,9 @@ public static class DecisionBehaviorContextFactory
             DecisionConvergence = convergence,
             GuidanceDisposition = disposition,
             GuidanceDispositionBasis = "p7_disposition_v1(confidence,convergence,ambiguity)",
-            WhyThisMattersNow = rationale,
+            WhyThisMattersNow = rationale.Sentence,
+            BehaviorKey = rationale.Key,
+            BehaviorPhrase = rationale.Phrase,
             RationalePolicy = "repeat_guard_aligned_v1"
         };
     }
@@ -168,7 +170,7 @@ public static class DecisionBehaviorContextFactory
             ? DecisionPreferenceModel.EvaluateComparison(session, trigger.ProductIdLow, trigger.ProductIdHigh)
             : DecisionPreferenceModel.EvaluateSingle(session, trigger.ProductIdLow);
 
-    private static string ResolveRationale(
+    private static DecisionBehaviorRationaleSelection ResolveRationale(
         DecisionBehaviorSessionContext session,
         DecisionPreferenceResult preference,
         in ResolvedDecisionTrigger trigger,
@@ -177,7 +179,7 @@ public static class DecisionBehaviorContextFactory
     {
         if (trigger.Kind == DecisionTriggerKind.Compare)
         {
-            return DecisionBehaviorRationaleBuilder.BuildComparisonWhyThisMattersNow(
+            return DecisionBehaviorRationaleBuilder.BuildComparisonRationale(
                 session,
                 preference,
                 trigger.ProductIdLow,
@@ -187,7 +189,7 @@ public static class DecisionBehaviorContextFactory
 
         if (trigger.Kind == DecisionTriggerKind.CompareReturn)
         {
-            return DecisionBehaviorRationaleBuilder.BuildCompareReturnWhyThisMattersNow(
+            return DecisionBehaviorRationaleBuilder.BuildCompareReturnRationale(
                 session,
                 preference,
                 trigger.ProductIdLow,
@@ -199,7 +201,7 @@ public static class DecisionBehaviorContextFactory
         if (TryResolveActiveCompareRationale(session, rationaleTemplates, out var compareRationale))
             return compareRationale;
 
-        return DecisionBehaviorRationaleBuilder.BuildSingleWhyThisMattersNow(
+        return DecisionBehaviorRationaleBuilder.BuildSingleRationale(
             session,
             preference,
             trigger.ProductIdLow,
@@ -215,9 +217,9 @@ public static class DecisionBehaviorContextFactory
     private static bool TryResolveActiveCompareRationale(
         DecisionBehaviorSessionContext session,
         DecisionBehaviorRationaleTemplates rationaleTemplates,
-        out string rationale)
+        out DecisionBehaviorRationaleSelection rationale)
     {
-        rationale = "";
+        rationale = null!;
         if (!session.IsCompareActive)
             return false;
 
@@ -229,7 +231,7 @@ public static class DecisionBehaviorContextFactory
             return false;
 
         var comparePreference = DecisionPreferenceModel.EvaluateComparison(session, pairA, pairB);
-        rationale = DecisionBehaviorRationaleBuilder.BuildComparisonWhyThisMattersNow(
+        rationale = DecisionBehaviorRationaleBuilder.BuildComparisonRationale(
             session,
             comparePreference,
             pairA,
