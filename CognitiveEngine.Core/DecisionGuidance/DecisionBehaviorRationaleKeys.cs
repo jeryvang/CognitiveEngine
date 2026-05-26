@@ -24,4 +24,6 @@ public static class DecisionBehaviorRationaleKeys
     public const string CompareRepeatedPair = "compare_repeated_pair";
     public const string CompareLean = "compare_lean";
     public const string CompareFallback = "compare_fallback";
+
+    public const string HesitationLowConfidence = "hesitation_low_confidence";
 }

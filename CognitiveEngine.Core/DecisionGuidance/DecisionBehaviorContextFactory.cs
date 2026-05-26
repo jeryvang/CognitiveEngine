@@ -198,6 +198,14 @@ public static class DecisionBehaviorContextFactory
                 cfg.MinRevisitCountForCompareReturnLean);
         }
 
+        if (trigger.Kind == DecisionTriggerKind.Hesitation)
+        {
+            return DecisionBehaviorRationaleBuilder.BuildHesitationRationale(
+                session,
+                trigger.ProductIdLow,
+                rationaleTemplates);
+        }
+
         if (TryResolveActiveCompareRationale(session, rationaleTemplates, out var compareRationale))
             return compareRationale;
 

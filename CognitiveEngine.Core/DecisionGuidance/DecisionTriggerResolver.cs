@@ -97,7 +97,7 @@ public sealed class DecisionTriggerResolver
 
     /// <summary>
     /// Applies optional focus update first (MRU + revisit/compare-return eligibility), then evaluates Compare,
-    /// then CompareReturn, then Revisit, then Dwell. At most one trigger is returned.
+    /// then CompareReturn, then Hesitation, then Revisit, then Dwell. At most one trigger is returned.
     /// </summary>
     public ResolvedDecisionTrigger? AdvanceFrame(in DecisionTriggerFrame frame)
     {
@@ -130,6 +130,19 @@ public sealed class DecisionTriggerResolver
             if (!string.IsNullOrWhiteSpace(frame.FocusProductIfChanged))
                 CommitFocusEligibilityConsumed(frame.FocusProductIfChanged);
             return cr;
+        }
+
+        if (!string.IsNullOrWhiteSpace(frame.HesitationCandidateProductId))
+        {
+            var hesitation = ResolvedDecisionTrigger.ForSingle(
+                DecisionTriggerKind.Hesitation, frame.HesitationCandidateProductId);
+            if (!IsDuplicate(hesitation))
+            {
+                RememberEmitted(hesitation);
+                if (!string.IsNullOrWhiteSpace(frame.FocusProductIfChanged))
+                    CommitFocusEligibilityConsumed(frame.FocusProductIfChanged);
+                return hesitation;
+            }
         }
 
         if (revisitPending is { } rev && !IsDuplicate(rev))
@@ -176,7 +189,8 @@ public sealed class DecisionTriggerResolver
             return;
         if (_lastEmittedSignature.StartsWith("dwell:", StringComparison.Ordinal) ||
             _lastEmittedSignature.StartsWith("revisit:", StringComparison.Ordinal) ||
-            _lastEmittedSignature.StartsWith("compare_return:", StringComparison.Ordinal))
+            _lastEmittedSignature.StartsWith("compare_return:", StringComparison.Ordinal) ||
+            _lastEmittedSignature.StartsWith("hesitation:", StringComparison.Ordinal))
             _lastEmittedSignature = null;
     }
 

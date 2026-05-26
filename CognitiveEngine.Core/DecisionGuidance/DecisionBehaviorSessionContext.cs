@@ -318,6 +318,28 @@ public sealed class DecisionBehaviorSessionContext
     public bool IsCurrentProductRepeatedFocus(int minFocusCount = 2) =>
         !string.IsNullOrWhiteSpace(CurrentProductId) && IsRepeatedFocus(CurrentProductId, minFocusCount);
 
+    /// <summary>
+    /// True when the user has shown a hesitation pattern on <paramref name="productId"/>: focused
+    /// it many times, revisited it after leaving multiple times, and never committed (no selection).
+    /// </summary>
+    public bool IsHesitating(string productId, int minFocusCount, int minRevisitCount)
+    {
+        if (string.IsNullOrWhiteSpace(productId))
+            throw new ArgumentException("productId is required.", nameof(productId));
+        if (minFocusCount < 2)
+            throw new ArgumentOutOfRangeException(nameof(minFocusCount), minFocusCount, "minFocusCount must be >= 2.");
+        if (minRevisitCount < 1)
+            throw new ArgumentOutOfRangeException(nameof(minRevisitCount), minRevisitCount, "minRevisitCount must be >= 1.");
+
+        if (GetSelectionCount(productId) > 0)
+            return false;
+        if (GetFocusCount(productId) < minFocusCount)
+            return false;
+        if (GetRevisitCount(productId) < minRevisitCount)
+            return false;
+        return true;
+    }
+
     public int GetTotalBehaviorEvidenceCount() =>
         SelectionCount + DwellCount + SwipeCount + CompareCount + RevisitCount;
 

@@ -165,4 +165,73 @@ public class DecisionTriggerResolverTests
         r.Advance(DecisionTriggerInput.FocusChanged("p"));
         Assert.Null(r.Advance(DecisionTriggerInput.FocusChanged("p")));
     }
+
+    [Fact]
+    public void Hesitation_Wins_Over_Revisit_WhenCandidateSet()
+    {
+        var r = new DecisionTriggerResolver();
+        r.Advance(DecisionTriggerInput.FocusChanged("a"));
+        r.Advance(DecisionTriggerInput.FocusChanged("b"));
+
+        var frame = new DecisionTriggerFrame(
+            focusProductIfChanged: "a",
+            compareInvoked: false,
+            dwellProductIfThreshold: null,
+            hesitationCandidateProductId: "a");
+        var t = r.AdvanceFrame(in frame);
+
+        Assert.NotNull(t);
+        Assert.Equal(DecisionTriggerKind.Hesitation, t!.Value.Kind);
+        Assert.Equal("a", t.Value.ProductIdLow);
+    }
+
+    [Fact]
+    public void Hesitation_Wins_Over_Dwell_InSameFrame()
+    {
+        var r = new DecisionTriggerResolver();
+        r.Advance(DecisionTriggerInput.FocusChanged("a"));
+
+        var frame = new DecisionTriggerFrame(
+            focusProductIfChanged: null,
+            compareInvoked: false,
+            dwellProductIfThreshold: "a",
+            hesitationCandidateProductId: "a");
+        var t = r.AdvanceFrame(in frame);
+
+        Assert.NotNull(t);
+        Assert.Equal(DecisionTriggerKind.Hesitation, t!.Value.Kind);
+    }
+
+    [Fact]
+    public void Compare_Wins_Over_Hesitation_InSameFrame()
+    {
+        var r = new DecisionTriggerResolver();
+        r.Advance(DecisionTriggerInput.FocusChanged("a"));
+        r.Advance(DecisionTriggerInput.FocusChanged("b"));
+
+        var frame = new DecisionTriggerFrame(
+            focusProductIfChanged: null,
+            compareInvoked: true,
+            dwellProductIfThreshold: null,
+            hesitationCandidateProductId: "a");
+        var t = r.AdvanceFrame(in frame);
+
+        Assert.NotNull(t);
+        Assert.Equal(DecisionTriggerKind.Compare, t!.Value.Kind);
+    }
+
+    [Fact]
+    public void Hesitation_Suppressed_OnRepeatUntilFocusChanges()
+    {
+        var r = new DecisionTriggerResolver();
+        r.Advance(DecisionTriggerInput.FocusChanged("a"));
+
+        var frame = new DecisionTriggerFrame(null, false, null, hesitationCandidateProductId: "a");
+        Assert.NotNull(r.AdvanceFrame(in frame));
+        Assert.Null(r.AdvanceFrame(in frame));
+
+        r.Advance(DecisionTriggerInput.FocusChanged("b"));
+        r.Advance(DecisionTriggerInput.FocusChanged("a"));
+        Assert.NotNull(r.AdvanceFrame(in frame));
+    }
 }

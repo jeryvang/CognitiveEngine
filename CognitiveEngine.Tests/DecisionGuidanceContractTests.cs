@@ -177,16 +177,19 @@ public class DecisionGuidanceContractTests
     }
 
     [Fact]
-    public void DecisionTriggerPriority_Order_IsCompareCompareReturnRevisitDwell()
+    public void DecisionTriggerPriority_Order_IsCompareCompareReturnHesitationRevisitDwell()
     {
-        Assert.Equal(4, DecisionTriggerPriority.StrictDescendingOrder.Length);
+        Assert.Equal(5, DecisionTriggerPriority.StrictDescendingOrder.Length);
         Assert.Equal(DecisionTriggerKind.Compare, DecisionTriggerPriority.StrictDescendingOrder[0]);
         Assert.Equal(DecisionTriggerKind.CompareReturn, DecisionTriggerPriority.StrictDescendingOrder[1]);
-        Assert.Equal(DecisionTriggerKind.Revisit, DecisionTriggerPriority.StrictDescendingOrder[2]);
-        Assert.Equal(DecisionTriggerKind.Dwell, DecisionTriggerPriority.StrictDescendingOrder[3]);
+        Assert.Equal(DecisionTriggerKind.Hesitation, DecisionTriggerPriority.StrictDescendingOrder[2]);
+        Assert.Equal(DecisionTriggerKind.Revisit, DecisionTriggerPriority.StrictDescendingOrder[3]);
+        Assert.Equal(DecisionTriggerKind.Dwell, DecisionTriggerPriority.StrictDescendingOrder[4]);
         Assert.True(DecisionTriggerPriority.Rank(DecisionTriggerKind.Compare) <
                     DecisionTriggerPriority.Rank(DecisionTriggerKind.CompareReturn));
         Assert.True(DecisionTriggerPriority.Rank(DecisionTriggerKind.CompareReturn) <
+                    DecisionTriggerPriority.Rank(DecisionTriggerKind.Hesitation));
+        Assert.True(DecisionTriggerPriority.Rank(DecisionTriggerKind.Hesitation) <
                     DecisionTriggerPriority.Rank(DecisionTriggerKind.Revisit));
         Assert.True(DecisionTriggerPriority.Rank(DecisionTriggerKind.Revisit) <
                     DecisionTriggerPriority.Rank(DecisionTriggerKind.Dwell));

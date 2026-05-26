@@ -146,6 +146,27 @@ public static class DecisionBehaviorRationaleBuilder
             DecisionBehaviorRationaleKeys.CompareFallback, t.CompareFallbackPhrase, t.CompareFallback);
     }
 
+    /// <summary>
+    /// Hesitation rationale: emitted when the user has repeatedly focused and revisited a single product
+    /// without committing. Currently a single deterministic branch; future branches may differentiate by
+    /// preference confidence or compare history.
+    /// </summary>
+    public static DecisionBehaviorRationaleSelection BuildHesitationRationale(
+        DecisionBehaviorSessionContext session,
+        string productId,
+        DecisionBehaviorRationaleTemplates? templates = null)
+    {
+        if (session == null) throw new ArgumentNullException(nameof(session));
+        if (string.IsNullOrWhiteSpace(productId))
+            throw new ArgumentException("productId is required.", nameof(productId));
+
+        var t = DecisionBehaviorRationaleTemplates.ResolveEffective(templates);
+        return new DecisionBehaviorRationaleSelection(
+            DecisionBehaviorRationaleKeys.HesitationLowConfidence,
+            t.HesitationLowConfidencePhrase,
+            t.HesitationLowConfidence);
+    }
+
     // ---------------------------------------------------------------------
     // Backward-compatible string accessors. Existing call sites continue to
     // receive the full sentence (why_this_matters_now) variant.
@@ -176,4 +197,10 @@ public static class DecisionBehaviorRationaleBuilder
         string productIdB,
         DecisionBehaviorRationaleTemplates? templates = null) =>
         BuildComparisonRationale(session, preference, productIdA, productIdB, templates).Sentence;
+
+    public static string BuildHesitationWhyThisMattersNow(
+        DecisionBehaviorSessionContext session,
+        string productId,
+        DecisionBehaviorRationaleTemplates? templates = null) =>
+        BuildHesitationRationale(session, productId, templates).Sentence;
 }

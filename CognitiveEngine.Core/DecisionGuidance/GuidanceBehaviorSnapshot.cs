@@ -41,6 +41,7 @@ public sealed class GuidanceBehaviorSnapshot
         {
             DecisionTriggerKind.Compare => "compare",
             DecisionTriggerKind.CompareReturn => "compare_return",
+            DecisionTriggerKind.Hesitation => "hesitation",
             DecisionTriggerKind.Revisit => "revisit",
             DecisionTriggerKind.Dwell => "dwell",
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)

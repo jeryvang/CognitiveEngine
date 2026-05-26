@@ -32,6 +32,10 @@ public sealed class DecisionGuidanceConfig
 
     public const int DefaultMinRevisitCountForCompareReturnLean = 2;
 
+    public const int DefaultMinFocusCountForHesitation = 3;
+
+    public const int DefaultMinRevisitCountForHesitation = 2;
+
     [JsonProperty("schema_version", Order = 1, Required = Required.Always)]
     public string SchemaVersion { get; set; } = DecisionGuidanceSchema.ConfigVersion;
 
@@ -107,9 +111,26 @@ public sealed class DecisionGuidanceConfig
     public int MinRevisitCountForCompareReturnLean { get; set; } = DefaultMinRevisitCountForCompareReturnLean;
 
     /// <summary>
+    /// Minimum focus count on a single product required before the engine emits a
+    /// <see cref="DecisionTriggerKind.Hesitation"/> trigger for it. Combined with
+    /// <see cref="MinRevisitCountForHesitation"/> and no-selection check.
+    /// </summary>
+    [JsonProperty("min_focus_count_for_hesitation", Order = 16, DefaultValueHandling = DefaultValueHandling.Ignore)]
+    [DefaultValue(DefaultMinFocusCountForHesitation)]
+    public int MinFocusCountForHesitation { get; set; } = DefaultMinFocusCountForHesitation;
+
+    /// <summary>
+    /// Minimum revisit count on a single product required before the engine emits a
+    /// <see cref="DecisionTriggerKind.Hesitation"/> trigger for it.
+    /// </summary>
+    [JsonProperty("min_revisit_count_for_hesitation", Order = 17, DefaultValueHandling = DefaultValueHandling.Ignore)]
+    [DefaultValue(DefaultMinRevisitCountForHesitation)]
+    public int MinRevisitCountForHesitation { get; set; } = DefaultMinRevisitCountForHesitation;
+
+    /// <summary>
     /// Optional overrides for P7 <c>why_this_matters_now</c> template copy. Omitted keys use engine defaults.
     /// </summary>
-    [JsonProperty("behavior_rationale_templates", Order = 16, DefaultValueHandling = DefaultValueHandling.Ignore)]
+    [JsonProperty("behavior_rationale_templates", Order = 18, DefaultValueHandling = DefaultValueHandling.Ignore)]
     public DecisionBehaviorRationaleTemplates? BehaviorRationaleTemplates { get; set; }
 
     public static DecisionGuidanceConfig CreateDefault() => new();
@@ -139,6 +160,16 @@ public sealed class DecisionGuidanceConfig
                 nameof(MinRevisitCountForCompareReturnLean),
                 MinRevisitCountForCompareReturnLean,
                 $"{nameof(MinRevisitCountForCompareReturnLean)} must be >= 1.");
+        if (MinFocusCountForHesitation < 2)
+            throw new ArgumentOutOfRangeException(
+                nameof(MinFocusCountForHesitation),
+                MinFocusCountForHesitation,
+                $"{nameof(MinFocusCountForHesitation)} must be >= 2.");
+        if (MinRevisitCountForHesitation < 1)
+            throw new ArgumentOutOfRangeException(
+                nameof(MinRevisitCountForHesitation),
+                MinRevisitCountForHesitation,
+                $"{nameof(MinRevisitCountForHesitation)} must be >= 1.");
         ValidateProbability(nameof(StrongGuidanceMinConfidence), StrongGuidanceMinConfidence);
         ValidateProbability(nameof(StrongGuidanceMinConvergence), StrongGuidanceMinConvergence);
         ValidateProbability(nameof(NeutralMaxConfidence), NeutralMaxConfidence);

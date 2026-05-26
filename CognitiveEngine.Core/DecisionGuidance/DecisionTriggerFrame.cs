@@ -8,11 +8,16 @@ namespace CognitiveEngine.Core.DecisionGuidance;
 /// </summary>
 public readonly struct DecisionTriggerFrame
 {
-    public DecisionTriggerFrame(string? focusProductIfChanged, bool compareInvoked, string? dwellProductIfThreshold)
+    public DecisionTriggerFrame(
+        string? focusProductIfChanged,
+        bool compareInvoked,
+        string? dwellProductIfThreshold,
+        string? hesitationCandidateProductId = null)
     {
         FocusProductIfChanged = focusProductIfChanged;
         CompareInvoked = compareInvoked;
         DwellProductIfThreshold = dwellProductIfThreshold;
+        HesitationCandidateProductId = hesitationCandidateProductId;
     }
 
     public string? FocusProductIfChanged { get; }
@@ -20,6 +25,16 @@ public readonly struct DecisionTriggerFrame
     public bool CompareInvoked { get; }
 
     public string? DwellProductIfThreshold { get; }
+
+    /// <summary>
+    /// Optional: a product the host (or coordinator) determined is in a hesitation pattern.
+    /// Set by the runtime after session-level evaluation; resolver emits
+    /// <see cref="DecisionTriggerKind.Hesitation"/> when set and not duplicated.
+    /// </summary>
+    public string? HesitationCandidateProductId { get; }
+
+    public DecisionTriggerFrame WithHesitationCandidate(string? productId) =>
+        new(FocusProductIfChanged, CompareInvoked, DwellProductIfThreshold, productId);
 
     public static DecisionTriggerFrame FromInput(in DecisionTriggerInput input) =>
         input.Kind switch

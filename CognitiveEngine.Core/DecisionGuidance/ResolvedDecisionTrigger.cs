@@ -13,8 +13,9 @@ public readonly struct ResolvedDecisionTrigger : IEquatable<ResolvedDecisionTrig
         Kind = kind;
         ProductIdLow = productIdLow ?? throw new ArgumentNullException(nameof(productIdLow));
         ProductIdHigh = productIdHigh ?? throw new ArgumentNullException(nameof(productIdHigh));
-        if (kind is DecisionTriggerKind.Revisit or DecisionTriggerKind.Dwell && !string.IsNullOrEmpty(productIdHigh))
-            throw new ArgumentException("productIdHigh must be empty for Revisit and Dwell.", nameof(productIdHigh));
+        if (kind is DecisionTriggerKind.Revisit or DecisionTriggerKind.Dwell or DecisionTriggerKind.Hesitation
+            && !string.IsNullOrEmpty(productIdHigh))
+            throw new ArgumentException("productIdHigh must be empty for Revisit, Dwell, and Hesitation.", nameof(productIdHigh));
         if (kind == DecisionTriggerKind.Compare && string.CompareOrdinal(productIdLow, productIdHigh) >= 0)
             throw new ArgumentException("For Compare, productIdLow must be strictly less than productIdHigh (lexical).", nameof(productIdLow));
         if (kind == DecisionTriggerKind.CompareReturn)
@@ -78,6 +79,7 @@ public readonly struct ResolvedDecisionTrigger : IEquatable<ResolvedDecisionTrig
         {
             DecisionTriggerKind.Compare => $"compare:{t.ProductIdLow}|{t.ProductIdHigh}",
             DecisionTriggerKind.CompareReturn => $"compare_return:{t.ProductIdLow}|{t.ProductIdHigh}",
+            DecisionTriggerKind.Hesitation => $"hesitation:{t.ProductIdLow}",
             DecisionTriggerKind.Revisit => $"revisit:{t.ProductIdLow}",
             DecisionTriggerKind.Dwell => $"dwell:{t.ProductIdLow}",
             _ => throw new InvalidOperationException("Unexpected DecisionTriggerKind.")

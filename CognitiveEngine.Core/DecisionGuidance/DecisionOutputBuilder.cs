@@ -10,8 +10,9 @@ public static class DecisionOutputBuilder
 {
     /// <summary>
     /// Produces a <see cref="SingleProductDecisionOutput"/> for <see cref="DecisionTriggerKind.Dwell"/>,
-    /// <see cref="DecisionTriggerKind.Revisit"/>, and <see cref="DecisionTriggerKind.CompareReturn"/>, or a
-    /// <see cref="ComparisonDecisionOutput"/> for <see cref="DecisionTriggerKind.Compare"/>.
+    /// <see cref="DecisionTriggerKind.Revisit"/>, <see cref="DecisionTriggerKind.Hesitation"/>, and
+    /// <see cref="DecisionTriggerKind.CompareReturn"/>, or a <see cref="ComparisonDecisionOutput"/> for
+    /// <see cref="DecisionTriggerKind.Compare"/>.
     /// </summary>
     public static DecisionOutputBuildResult Build(ResolvedDecisionTrigger trigger, DecisionOutputContent? content = null)
     {
@@ -20,7 +21,10 @@ public static class DecisionOutputBuilder
         return trigger.Kind switch
         {
             DecisionTriggerKind.Compare => DecisionOutputBuildResult.FromComparison(BuildComparison(in trigger, content)),
-            DecisionTriggerKind.Revisit or DecisionTriggerKind.Dwell or DecisionTriggerKind.CompareReturn =>
+            DecisionTriggerKind.Revisit
+                or DecisionTriggerKind.Dwell
+                or DecisionTriggerKind.Hesitation
+                or DecisionTriggerKind.CompareReturn =>
                 DecisionOutputBuildResult.FromSingle(BuildSingle(in trigger, content)),
             _ => throw new InvalidOperationException("Unexpected DecisionTriggerKind.")
         };

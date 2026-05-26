@@ -127,7 +127,8 @@ public sealed class DecisionGuidanceRuntime
             _onEvent?.Invoke(new DecisionGuidanceEvent(DecisionGuidanceEventKind.DwellThresholdMet, _session.Presentation.LogicalNowMs, frame.DwellProductIfThreshold));
         }
 
-        var trigger = _session.Resolver.AdvanceFrame(in frame);
+        var resolvedFrame = AttachHesitationCandidateIfAny(in frame);
+        var trigger = _session.Resolver.AdvanceFrame(in resolvedFrame);
         if (trigger == null)
             return null;
 
@@ -215,6 +216,35 @@ public sealed class DecisionGuidanceRuntime
             _lastEnqueuedBehaviorSnapshot,
             t,
             _lastEnqueuedBuild);
+    }
+
+    /// <summary>
+    /// Evaluates whether the focused product is in a hesitation pattern (repeated focus + repeated revisit
+    /// + no selection) and, if so, attaches it to the frame so the resolver can emit a
+    /// <see cref="DecisionTriggerKind.Hesitation"/> trigger between CompareReturn and Revisit.
+    /// </summary>
+    private DecisionTriggerFrame AttachHesitationCandidateIfAny(in DecisionTriggerFrame frame)
+    {
+        if (frame.HesitationCandidateProductId != null)
+            return frame;
+
+        if (_session.BehaviorSession.IsCompareActive)
+            return frame;
+
+        var candidate = frame.FocusProductIfChanged
+                        ?? frame.DwellProductIfThreshold
+                        ?? _session.BehaviorSession.CurrentProductId;
+        if (string.IsNullOrWhiteSpace(candidate))
+            return frame;
+
+        var cfg = _session.Config;
+        if (!_session.BehaviorSession.IsHesitating(
+                candidate,
+                cfg.MinFocusCountForHesitation,
+                cfg.MinRevisitCountForHesitation))
+            return frame;
+
+        return frame.WithHesitationCandidate(candidate);
     }
 
     private void TryAttachBehaviorContext(DecisionOutputBuildResult build, in ResolvedDecisionTrigger trigger)

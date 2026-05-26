@@ -155,6 +155,64 @@ public class GuidanceBehaviorSnapshotTests
     }
 
     [Fact]
+    public void Runtime_Emits_Hesitation_Snapshot_AfterRepeatedFocusWithoutSelection()
+    {
+        var events = new List<DecisionGuidanceEvent>();
+        var rt = new DecisionGuidanceRuntime(FastConfig(), _ => new DecisionOutputContent
+        {
+            WhatThisGivesYou = "g",
+            WhatYouTradeOff = "t"
+        }, events.Add);
+
+        // Build hesitation pattern on "a": focus a → b → a → b → a
+        // → focus count a = 3, revisit count a = 2, no selection.
+        rt.NotifyProductFocusChanged("a");
+        rt.NotifyProductFocusChanged("b");
+        rt.NotifyProductFocusChanged("a");
+        rt.NotifyProductFocusChanged("b");
+        rt.NotifyProductFocusChanged("a");
+
+        // A subsequent host trigger (dwell on "a") should be re-routed to Hesitation
+        // by the runtime, because hesitation conditions on "a" are met.
+        var emitted = rt.ProcessTriggerInput(DecisionTriggerInput.DwellThresholdMet("a"));
+
+        Assert.NotNull(emitted);
+        Assert.Equal(DecisionTriggerKind.Hesitation, emitted!.Value.Kind);
+
+        var enqueued = events.Last(e => e.Kind == DecisionGuidanceEventKind.OutputEnqueued);
+        Assert.NotNull(enqueued.BehaviorSnapshot);
+        Assert.Equal("hesitation", enqueued.BehaviorSnapshot!.Signal);
+        Assert.Equal(DecisionBehaviorRationaleKeys.HesitationLowConfidence,
+            enqueued.BehaviorSnapshot.BehaviorKey);
+        Assert.Equal("a", enqueued.BehaviorSnapshot.ProductId);
+        Assert.Null(enqueued.BehaviorSnapshot.ProductIdHigh);
+    }
+
+    [Fact]
+    public void Runtime_DoesNotEmit_Hesitation_WhenCompareActive()
+    {
+        var events = new List<DecisionGuidanceEvent>();
+        var rt = new DecisionGuidanceRuntime(FastConfig(), _ => new DecisionOutputContent
+        {
+            WhatThisGivesYou = "g",
+            WhatYouTradeOff = "t"
+        }, events.Add);
+
+        rt.NotifyProductFocusChanged("a");
+        rt.NotifyProductFocusChanged("b");
+        rt.NotifyProductFocusChanged("a");
+        rt.NotifyProductFocusChanged("b");
+        rt.NotifyProductFocusChanged("a");
+
+        // Enter compare; subsequent dwell should NOT be re-routed to hesitation.
+        rt.NotifyCompareEntered();
+        var emitted = rt.ProcessTriggerInput(DecisionTriggerInput.DwellThresholdMet("a"));
+
+        Assert.NotNull(emitted);
+        Assert.NotEqual(DecisionTriggerKind.Hesitation, emitted!.Value.Kind);
+    }
+
+    [Fact]
     public void Snapshot_BehaviorPhrase_IsShorterThanFullSentence()
     {
         var events = new List<DecisionGuidanceEvent>();

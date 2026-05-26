@@ -104,6 +104,12 @@ public sealed class DecisionBehaviorRationaleTemplates
     [JsonProperty("compare_fallback_phrase")]
     public string CompareFallbackPhrase { get; set; } = "";
 
+    [JsonProperty("hesitation_low_confidence")]
+    public string HesitationLowConfidence { get; set; } = "";
+
+    [JsonProperty("hesitation_low_confidence_phrase")]
+    public string HesitationLowConfidencePhrase { get; set; } = "";
+
     public static DecisionBehaviorRationaleTemplates CreateDefault() =>
         new()
         {
@@ -136,7 +142,9 @@ public sealed class DecisionBehaviorRationaleTemplates
             CompareLean = BuiltIn.CompareLean,
             CompareLeanPhrase = BuiltIn.CompareLeanPhrase,
             CompareFallback = BuiltIn.CompareFallback,
-            CompareFallbackPhrase = BuiltIn.CompareFallbackPhrase
+            CompareFallbackPhrase = BuiltIn.CompareFallbackPhrase,
+            HesitationLowConfidence = BuiltIn.HesitationLowConfidence,
+            HesitationLowConfidencePhrase = BuiltIn.HesitationLowConfidencePhrase
         };
 
     /// <summary>Merges optional host overrides onto built-in defaults.</summary>
@@ -176,7 +184,9 @@ public sealed class DecisionBehaviorRationaleTemplates
             CompareLean = Pick(overrides.CompareLean, BuiltIn.CompareLean),
             CompareLeanPhrase = Pick(overrides.CompareLeanPhrase, BuiltIn.CompareLeanPhrase),
             CompareFallback = Pick(overrides.CompareFallback, BuiltIn.CompareFallback),
-            CompareFallbackPhrase = Pick(overrides.CompareFallbackPhrase, BuiltIn.CompareFallbackPhrase)
+            CompareFallbackPhrase = Pick(overrides.CompareFallbackPhrase, BuiltIn.CompareFallbackPhrase),
+            HesitationLowConfidence = Pick(overrides.HesitationLowConfidence, BuiltIn.HesitationLowConfidence),
+            HesitationLowConfidencePhrase = Pick(overrides.HesitationLowConfidencePhrase, BuiltIn.HesitationLowConfidencePhrase)
         };
     }
 
@@ -226,6 +236,9 @@ public sealed class DecisionBehaviorRationaleTemplates
 
         public const string CompareFallback = "These options are still close. Decide using one priority that matters to you.";
         public const string CompareFallbackPhrase = "These options are still close.";
+
+        public const string HesitationLowConfidence = "You've returned to this option without committing. Pick one tradeoff that matters most and decide.";
+        public const string HesitationLowConfidencePhrase = "You've returned without committing.";
     }
 
     public void ValidateOrThrow()
@@ -260,6 +273,8 @@ public sealed class DecisionBehaviorRationaleTemplates
         ValidateField(nameof(CompareLeanPhrase), CompareLeanPhrase);
         ValidateField(nameof(CompareFallback), CompareFallback);
         ValidateField(nameof(CompareFallbackPhrase), CompareFallbackPhrase);
+        ValidateField(nameof(HesitationLowConfidence), HesitationLowConfidence);
+        ValidateField(nameof(HesitationLowConfidencePhrase), HesitationLowConfidencePhrase);
     }
 
     private static string Pick(string? custom, string fallback) =>

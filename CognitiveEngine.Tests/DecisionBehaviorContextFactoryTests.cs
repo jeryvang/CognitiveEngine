@@ -547,4 +547,89 @@ public class DecisionBehaviorContextFactoryTests
         Assert.Equal(defaults.CompareLean, rationale);
         Assert.NotEqual(defaults.CompareFallback, rationale);
     }
+
+    // -----------------------------------------------------------------------
+    // Phase 3 — Hesitation signal
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void Hesitation_Session_IsHesitating_RequiresFocusRevisitNoSelection()
+    {
+        var session = new DecisionBehaviorSessionContext();
+
+        // Focus a → b → a → b → a (focus count for a = 3, revisits for a = 2, no selection)
+        session.RecordFocusChanged("a");
+        session.RecordFocusChanged("b");
+        session.RecordFocusChanged("a");
+        session.RecordFocusChanged("b");
+        session.RecordFocusChanged("a");
+
+        Assert.True(session.IsHesitating("a", minFocusCount: 3, minRevisitCount: 2));
+
+        // Selecting clears hesitation
+        session.RecordSelect("a");
+        Assert.False(session.IsHesitating("a", minFocusCount: 3, minRevisitCount: 2));
+    }
+
+    [Fact]
+    public void Hesitation_Session_IsHesitating_FalseWhenFocusCountBelowThreshold()
+    {
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("a");
+        session.RecordFocusChanged("b");
+        session.RecordFocusChanged("a");
+
+        // focus count a = 2, revisits = 1 → not hesitating at defaults (3 / 2)
+        Assert.False(session.IsHesitating("a", minFocusCount: 3, minRevisitCount: 2));
+    }
+
+    [Fact]
+    public void HesitationRationale_ReturnsKeyPhraseAndSentence()
+    {
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("a");
+        var selection = DecisionBehaviorRationaleBuilder.BuildHesitationRationale(session, "a");
+
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        Assert.Equal(DecisionBehaviorRationaleKeys.HesitationLowConfidence, selection.Key);
+        Assert.Equal(defaults.HesitationLowConfidencePhrase, selection.Phrase);
+        Assert.Equal(defaults.HesitationLowConfidence, selection.Sentence);
+    }
+
+    [Fact]
+    public void HesitationRationale_RespectsTemplateOverrides()
+    {
+        var templates = new DecisionBehaviorRationaleTemplates
+        {
+            HesitationLowConfidence = "Custom hesitation sentence.",
+            HesitationLowConfidencePhrase = "Custom hesitation phrase."
+        };
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("a");
+
+        var selection = DecisionBehaviorRationaleBuilder.BuildHesitationRationale(session, "a", templates);
+
+        Assert.Equal("Custom hesitation sentence.", selection.Sentence);
+        Assert.Equal("Custom hesitation phrase.", selection.Phrase);
+        Assert.Equal(DecisionBehaviorRationaleKeys.HesitationLowConfidence, selection.Key);
+    }
+
+    [Fact]
+    public void Factory_HesitationTrigger_ProducesHesitationContext()
+    {
+        var session = new DecisionBehaviorSessionContext();
+        session.RecordFocusChanged("a");
+        session.RecordFocusChanged("b");
+        session.RecordFocusChanged("a");
+        session.RecordFocusChanged("b");
+        session.RecordFocusChanged("a");
+
+        var trigger = ResolvedDecisionTrigger.ForSingle(DecisionTriggerKind.Hesitation, "a");
+        var ctx = DecisionBehaviorContextFactory.Create(session, in trigger, DecisionGuidanceConfig.CreateDefault());
+
+        var defaults = DecisionBehaviorRationaleTemplates.CreateDefault();
+        Assert.Equal(DecisionBehaviorRationaleKeys.HesitationLowConfidence, ctx.BehaviorKey);
+        Assert.Equal(defaults.HesitationLowConfidencePhrase, ctx.BehaviorPhrase);
+        Assert.Equal(defaults.HesitationLowConfidence, ctx.WhyThisMattersNow);
+    }
 }
